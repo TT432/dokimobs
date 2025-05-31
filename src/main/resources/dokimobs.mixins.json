@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "io.github.tt432.dokimobs.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "dokimobs.refmap.json",
+  "mixins": [
+    "EntityTypeMixin"
+  ],
+  "client": [
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
