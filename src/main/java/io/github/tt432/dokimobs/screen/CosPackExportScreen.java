@@ -52,6 +52,14 @@ public class CosPackExportScreen extends Screen {
         int padding = Math.round(inputHeight * .1F);
         addRenderableWidget(panel = new CosPackEntitiesListPanel(Minecraft.getInstance(), leftAreaWidth, Math.round(height * 0.8F) - (inputHeight + padding), border + (inputHeight + padding), border));
         addRenderableWidget(new CosPackSelectedListView(Minecraft.getInstance(), leftAreaWidth, Math.round(height * 0.8F), border, border + leftAreaWidth + border, panel.getSelected()));
+        addRenderableWidget(new Button.Builder(Component.literal("只显示有 entity 文件的生物"), b -> {
+            panel.onlyEntity = true;
+            panel.update();
+        })
+                .pos(border * 3 + leftAreaWidth * 2, height - inputHeight - border - inputHeight/2 - inputHeight)
+                .size(width - (leftAreaWidth * 2 + border * 4), inputHeight)
+                .build());
+
         addRenderableWidget(new Button.Builder(Component.literal("导出为 cospack"), b -> {
             var file = CosPackFileV1.from(panel.getSelected().stream().map(s -> Eyelib.getClientEntityLoader().get(ResourceLocation.parse(s.key))).toArray(BrClientEntity[]::new));
             CosPackFileManager.export(file);

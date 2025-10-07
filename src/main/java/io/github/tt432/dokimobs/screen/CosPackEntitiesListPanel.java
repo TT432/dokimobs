@@ -65,6 +65,7 @@ public class CosPackEntitiesListPanel extends ScrollPanel {
     private final List<EntityButton> allEntitiesList = new ArrayList<>();
     private final List<EntityButton> filtedEntitiesList = new ArrayList<>();
     private boolean finished = false;
+    public boolean onlyEntity = false;
 
     {
         CompletableFuture.runAsync(() -> {
@@ -98,11 +99,15 @@ public class CosPackEntitiesListPanel extends ScrollPanel {
 
     String lastSearch = "";
 
+    public void update() {
+        onEdited(lastSearch);
+    }
+
     void onEdited(String input) {
-        if (lastSearch.equals(input)) return;
         filtedEntitiesList.clear();
         for (EntityButton entityButton : allEntitiesList) {
-            if (StringUtils.contains(entityButton.key, input) || StringUtils.contains(entityButton.name.getString(), input)) {
+            if ((StringUtils.contains(entityButton.key, input) || StringUtils.contains(entityButton.name.getString(), input)) &&
+                    (onlyEntity == (Eyelib.getClientEntityLoader().get(ResourceLocation.parse(entityButton.key)) != null))) {
                 filtedEntitiesList.add(entityButton);
             }
         }
@@ -124,7 +129,7 @@ public class CosPackEntitiesListPanel extends ScrollPanel {
 
     @Override
     protected int getContentHeight() {
-        return lineAmount() * slotSize();
+        return (lineAmount()+1) * slotSize();
     }
 
     private EntityButton hoverButton;

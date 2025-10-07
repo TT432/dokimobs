@@ -7,9 +7,11 @@ import io.netty.buffer.ByteBuf;
 import lombok.With;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.world.entity.MobSpawnType;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.living.FinalizeSpawnEvent;
 
 /**
  * @author TT432
@@ -34,6 +36,21 @@ public record EntityDokiData(
 
     @EventBusSubscriber
     public static final class Events {
+        @SubscribeEvent
+        public static void onFinalizeSpawn(FinalizeSpawnEvent event) {
+            // 处理刷怪蛋生成的实体，确保它们能正确设置doki属性
+            if (event.getSpawnType() == MobSpawnType.SPAWN_EGG) {
+                EntityDokiData data = event.getEntity().getData(DokiData.DOKI);
+                if (!event.getLevel().isClientSide() && !data.init) {
+                    data = data
+                            .withInit(true)
+                            .withDoki(Math.random() < DokimobsConfig.CONFIG.spawnChance.get());
+
+                    event.getEntity().setData(DokiData.DOKI, data);
+                }
+            }
+        }
+
         @SubscribeEvent
         public static void onEvent(EntityJoinLevelEvent event) {
             EntityDokiData data = event.getEntity().getData(DokiData.DOKI);

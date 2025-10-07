@@ -1,14 +1,13 @@
 package io.github.tt432.dokimobs;
 
 import io.github.tt432.dokimobs.data.DokiData;
+import io.github.tt432.eyelib.capability.EntityBehaviorData;
 import io.github.tt432.eyelib.capability.EyelibAttachableData;
 import io.github.tt432.eyelib.capability.RenderData;
 import io.github.tt432.eyelib.common.behavior.component.MarkVariant;
 import io.github.tt432.eyelib.common.behavior.component.Variant;
 import io.github.tt432.eyelib.common.behavior.component.group.ComponentGroup;
-import io.github.tt432.eyelib.network.EntityBehaviorDataUpdatePacket;
-import io.github.tt432.eyelib.network.UniDataUpdatePacket;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.animal.Chicken;
@@ -16,14 +15,16 @@ import net.minecraft.world.entity.animal.Fox;
 import net.minecraft.world.entity.animal.horse.Llama;
 import net.minecraft.world.entity.animal.horse.TraderLlama;
 import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.entity.npc.Villager;
+import net.minecraft.world.entity.npc.VillagerDataHolder;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RenderLivingEvent;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.event.tick.EntityTickEvent;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -33,19 +34,6 @@ import java.util.Map;
 public class TempVariantSetting {
     @EventBusSubscriber
     public static final class CommonEvents {
-        @SubscribeEvent
-        public static void onEvent(PlayerEvent.StartTracking event) {
-            if (event.getEntity() instanceof ServerPlayer sp) {
-                PacketDistributor.sendToPlayer(sp,
-                        new EntityBehaviorDataUpdatePacket(
-                                event.getTarget().getId(),
-                                event.getTarget().getData(EyelibAttachableData.ENTITY_BEHAVIOR_DATA)
-                        ),
-                        UniDataUpdatePacket.crate(event.getTarget(), DokiData.DOKI)
-                );
-            }
-        }
-
         static void variant(Entity entity, Variant variant) {
             var data = entity.getData(EyelibAttachableData.ENTITY_BEHAVIOR_DATA);
             List<ComponentGroup> componentGroups = data.getComponentGroups();
@@ -64,20 +52,51 @@ public class TempVariantSetting {
 
         static void variant(Entity entity, Variant variant, MarkVariant markVariant) {
             var data = entity.getData(EyelibAttachableData.ENTITY_BEHAVIOR_DATA);
-            List<ComponentGroup> componentGroups = data.getComponentGroups();
+            List<ComponentGroup> componentGroups = new ArrayList<>();
 
-            if (componentGroups.isEmpty()) {
-                componentGroups.add(new ComponentGroup(Map.of("a", Map.of(
-                        "variant",
-                        variant,
-                        "mark_variant",
-                        markVariant
-                ))));
+            componentGroups.add(new ComponentGroup(Map.of("variants", Map.of(
+                    "variant",
+                    variant,
+                    "mark_variant",
+                    markVariant
+            ))));
+
+            entity.setData(EyelibAttachableData.ENTITY_BEHAVIOR_DATA, new EntityBehaviorData(data.getBehavior(), componentGroups));
+        }
+
+        @SubscribeEvent
+        public static void onEvent(EntityTickEvent.Pre event) {
+            if (!event.getEntity().level().isClientSide) {
+                if (event.getEntity() instanceof VillagerDataHolder villager) {
+                    variant((Entity) villager, new Variant(switch (villager.getVillagerData().getProfession().name()) {
+                        case "unskilled" -> 0;
+                        case "farmer" -> 1;
+                        case "fisherman" -> 2;
+                        case "shepherd" -> 3;
+                        case "fletcher" -> 4;
+                        case "librarian" -> 5;
+                        case "cartographer" -> 6;
+                        case "cleric" -> 7;
+                        case "armorer" -> 8;
+                        case "weapon_smith" -> 9;
+                        case "tool_smith" -> 10;
+                        case "butcher" -> 11;
+                        case "leatherworker" -> 12;
+                        case "stonemason" -> 13;
+                        case "nitwit" -> 14;
+                        default -> 0;
+                    }), new MarkVariant(switch (BuiltInRegistries.VILLAGER_TYPE.getKey(villager.getVillagerData().getType()).toString()) {
+                        case "plains" -> 0;
+                        case "desert" -> 1;
+                        case "jungle" -> 2;
+                        case "savanna" -> 3;
+                        case "snow" -> 4;
+                        case "swamp" -> 5;
+                        case "taiga" -> 6;
+                        default -> 0;
+                    }));
+                }
             }
-
-            data.setup();
-
-            entity.setData(EyelibAttachableData.ENTITY_BEHAVIOR_DATA, data);
         }
 
         @SubscribeEvent
@@ -115,6 +134,9 @@ public class TempVariantSetting {
                     }
                     case Chicken chicken -> {
                         variant(chicken, new Variant(chicken.getRandom().nextInt(3)));
+                    }
+                    case Villager villager -> {
+
                     }
                     default -> {
                     }
