@@ -1,6 +1,6 @@
 package io.github.tt432.dokimobs.config;
 
-import net.neoforged.neoforge.common.ModConfigSpec;
+import net.minecraftforge.common.ForgeConfigSpec;
 import org.apache.commons.lang3.tuple.Pair;
 
 /**
@@ -8,16 +8,16 @@ import org.apache.commons.lang3.tuple.Pair;
  */
 public class DokimobsConfig {
     public static final DokimobsConfig CONFIG;
-    public static final ModConfigSpec CONFIG_SPEC;
-    public final ModConfigSpec.DoubleValue spawnChance;
+    public static final ForgeConfigSpec CONFIG_SPEC;
+    public final ForgeConfigSpec.DoubleValue spawnChance;
 
-    private DokimobsConfig(ModConfigSpec.Builder builder) {
+    private DokimobsConfig(ForgeConfigSpec.Builder builder) {
         spawnChance = builder.defineInRange("spawn_chance", 0.2, 0.0, 1.0);
     }
 
     static {
-        Pair<DokimobsConfig, ModConfigSpec> pair =
-                new ModConfigSpec.Builder().configure(DokimobsConfig::new);
+        Pair<DokimobsConfig, ForgeConfigSpec> pair =
+                new ForgeConfigSpec.Builder().configure(DokimobsConfig::new);
 
         CONFIG = pair.getLeft();
         CONFIG_SPEC = pair.getRight();

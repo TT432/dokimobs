@@ -7,6 +7,7 @@ import io.github.tt432.eyelib.capability.RenderData;
 import io.github.tt432.eyelib.common.behavior.component.MarkVariant;
 import io.github.tt432.eyelib.common.behavior.component.Variant;
 import io.github.tt432.eyelib.common.behavior.component.group.ComponentGroup;
+import io.github.tt432.eyelib.util.data_attach.DataAttachmentHelper;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
@@ -17,12 +18,12 @@ import net.minecraft.world.entity.animal.horse.TraderLlama;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerDataHolder;
-import net.neoforged.bus.api.EventPriority;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.RenderLivingEvent;
-import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
-import net.neoforged.neoforge.event.tick.EntityTickEvent;
+import net.minecraftforge.client.event.RenderLivingEvent;
+import net.minecraftforge.event.entity.EntityJoinLevelEvent;
+import net.minecraftforge.event.entity.living.LivingEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,10 +33,10 @@ import java.util.Map;
  * @author TT432
  */
 public class TempVariantSetting {
-    @EventBusSubscriber
+    @Mod.EventBusSubscriber
     public static final class CommonEvents {
         static void variant(Entity entity, Variant variant) {
-            var data = entity.getData(EyelibAttachableData.ENTITY_BEHAVIOR_DATA);
+            var data = DataAttachmentHelper.getOrCreate(EyelibAttachableData.ENTITY_BEHAVIOR_DATA.get(), entity);
             List<ComponentGroup> componentGroups = data.getComponentGroups();
 
             if (componentGroups.isEmpty()) {
@@ -47,11 +48,11 @@ public class TempVariantSetting {
 
             data.setup();
 
-            entity.setData(EyelibAttachableData.ENTITY_BEHAVIOR_DATA, data);
+            DataAttachmentHelper.set(EyelibAttachableData.ENTITY_BEHAVIOR_DATA.get(), entity, data);
         }
 
         static void variant(Entity entity, Variant variant, MarkVariant markVariant) {
-            var data = entity.getData(EyelibAttachableData.ENTITY_BEHAVIOR_DATA);
+            var data = DataAttachmentHelper.getOrCreate(EyelibAttachableData.ENTITY_BEHAVIOR_DATA.get(), entity);
             List<ComponentGroup> componentGroups = new ArrayList<>();
 
             componentGroups.add(new ComponentGroup(Map.of("variants", Map.of(
@@ -61,11 +62,11 @@ public class TempVariantSetting {
                     markVariant
             ))));
 
-            entity.setData(EyelibAttachableData.ENTITY_BEHAVIOR_DATA, new EntityBehaviorData(data.getBehavior(), componentGroups));
+            DataAttachmentHelper.set(EyelibAttachableData.ENTITY_BEHAVIOR_DATA.get(), entity, new EntityBehaviorData(data.getBehavior(), componentGroups));
         }
 
         @SubscribeEvent
-        public static void onEvent(EntityTickEvent.Pre event) {
+        public static void onEvent(LivingEvent.LivingTickEvent event) {
             if (!event.getEntity().level().isClientSide) {
                 if (event.getEntity() instanceof VillagerDataHolder villager) {
                     variant((Entity) villager, new Variant(switch (villager.getVillagerData().getProfession().name()) {
@@ -102,44 +103,58 @@ public class TempVariantSetting {
         @SubscribeEvent
         public static void onEvent(EntityJoinLevelEvent event) {
             if (!event.getLevel().isClientSide) {
-                switch (event.getEntity()) {
-                    case Zombie z -> {
-                        variant(z, new Variant(z.getRandom().nextInt(3)));
-                    }
-                    case Llama llama -> {
-                        variant(llama, new Variant(llama.getVariant().getId()), new MarkVariant(llama instanceof TraderLlama ? 1 : 0));
-                    }
-                    case Fox fox -> {
-                        if (fox.getVariant() == Fox.Type.SNOW) {
-                            variant(fox, new Variant(switch (weightedRandom(fox.getRandom(), new int[]{5, 1, 1, 1})) {
-                                case 0 -> 1;
-                                case 1 -> 9;
-                                case 2 -> 10;
-                                case 3 -> 11;
-                                default -> -1;
-                            }));
-                        } else {
-                            variant(fox, new Variant(switch (weightedRandom(fox.getRandom(), new int[]{5, 1, 1, 1, 1, 1, 1, 1})) {
-                                case 0 -> 0;
-                                case 1 -> 6;
-                                case 2 -> 2;
-                                case 3 -> 3;
-                                case 4 -> 4;
-                                case 5 -> 5;
-                                case 6 -> 8;
-                                case 7 -> 7;
-                                default -> -1;
-                            }));
-                        }
-                    }
-                    case Chicken chicken -> {
-                        variant(chicken, new Variant(chicken.getRandom().nextInt(3)));
-                    }
-                    case Villager villager -> {
+                var entity = event.getEntity();
 
+                if (entity instanceof Zombie z) {
+                    variant(z, new Variant(z.getRandom().nextInt(3)));
+                } else if (entity instanceof Llama llama) {
+                    variant(llama, new Variant(llama.getVariant().getId()), new MarkVariant(llama instanceof TraderLlama ? 1 : 0));
+                } else if (entity instanceof Fox fox) {
+                    if (fox.getVariant() == Fox.Type.SNOW) {
+                        int choice = weightedRandom(fox.getRandom(), new int[]{5, 1, 1, 1});
+                        int result;
+                        if (choice == 0) {
+                            result = 1;
+                        } else if (choice == 1) {
+                            result = 9;
+                        } else if (choice == 2) {
+                            result = 10;
+                        } else if (choice == 3) {
+                            result = 11;
+                        } else {
+                            result = -1;
+                        }
+                        variant(fox, new Variant(result));
+                    } else {
+                        int choice = weightedRandom(fox.getRandom(), new int[]{5, 1, 1, 1, 1, 1, 1, 1});
+                        int result;
+                        if (choice == 0) {
+                            result = 0;
+                        } else if (choice == 1) {
+                            result = 6;
+                        } else if (choice == 2) {
+                            result = 2;
+                        } else if (choice == 3) {
+                            result = 3;
+                        } else if (choice == 4) {
+                            result = 4;
+                        } else if (choice == 5) {
+                            result = 5;
+                        } else if (choice == 6) {
+                            result = 8;
+                        } else if (choice == 7) {
+                            result = 7;
+                        } else {
+                            result = -1;
+                        }
+                        variant(fox, new Variant(result));
                     }
-                    default -> {
-                    }
+                } else if (entity instanceof Chicken chicken) {
+                    variant(chicken, new Variant(chicken.getRandom().nextInt(3)));
+                } else if (entity instanceof Villager) {
+                    // Villager 处理（当前为空）
+                } else {
+                    // default 情况（当前为空）
                 }
             }
         }
@@ -161,11 +176,11 @@ public class TempVariantSetting {
         }
     }
 
-    @EventBusSubscriber
+    @Mod.EventBusSubscriber
     public static final class ClientEvents {
         @SubscribeEvent(priority = EventPriority.HIGHEST)
         public static void onEvent(RenderLivingEvent.Pre event) {
-            if (!event.getEntity().getData(DokiData.DOKI).doki()) {
+            if (!DataAttachmentHelper.getOrCreate(DokiData.DOKI.get(), event.getEntity()).doki()) {
                 RenderData.getComponent(event.getEntity()).setUseBuiltInRenderSystem(false);
             }
         }

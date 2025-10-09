@@ -3,15 +3,14 @@ package io.github.tt432.dokimobs.data;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.github.tt432.dokimobs.config.DokimobsConfig;
-import io.netty.buffer.ByteBuf;
+import io.github.tt432.eyelib.util.codec.stream.StreamCodec;
+import io.github.tt432.eyelib.util.data_attach.DataAttachmentHelper;
 import lombok.With;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.world.entity.MobSpawnType;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
-import net.neoforged.neoforge.event.entity.living.FinalizeSpawnEvent;
+import net.minecraftforge.event.entity.EntityJoinLevelEvent;
+import net.minecraftforge.event.entity.living.MobSpawnEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 
 /**
  * @author TT432
@@ -26,40 +25,37 @@ public record EntityDokiData(
             Codec.BOOL.fieldOf("doki").forGetter(EntityDokiData::doki)
     ).apply(ins, EntityDokiData::new));
 
-    public static final StreamCodec<ByteBuf, EntityDokiData> STREAM_CODEC = StreamCodec.composite(
-            ByteBufCodecs.BOOL,
-            EntityDokiData::init,
-            ByteBufCodecs.BOOL,
-            EntityDokiData::doki,
-            EntityDokiData::new
-    );
+    public static final StreamCodec<EntityDokiData> STREAM_CODEC = StreamCodec.create((obj, buf) -> {
+        buf.writeBoolean(obj.init());
+        buf.writeBoolean(obj.doki());
+    }, buf -> new EntityDokiData(buf.readBoolean(), buf.readBoolean()));
 
-    @EventBusSubscriber
+    @Mod.EventBusSubscriber
     public static final class Events {
         @SubscribeEvent
-        public static void onFinalizeSpawn(FinalizeSpawnEvent event) {
+        public static void onFinalizeSpawn(MobSpawnEvent.FinalizeSpawn event) {
             // 处理刷怪蛋生成的实体，确保它们能正确设置doki属性
             if (event.getSpawnType() == MobSpawnType.SPAWN_EGG) {
-                EntityDokiData data = event.getEntity().getData(DokiData.DOKI);
+                EntityDokiData data = DataAttachmentHelper.getOrCreate(DokiData.DOKI.get(), event.getEntity());
                 if (!event.getLevel().isClientSide() && !data.init) {
                     data = data
                             .withInit(true)
                             .withDoki(Math.random() < DokimobsConfig.CONFIG.spawnChance.get());
 
-                    event.getEntity().setData(DokiData.DOKI, data);
+                    DataAttachmentHelper.set(DokiData.DOKI.get(), event.getEntity(), data);
                 }
             }
         }
 
         @SubscribeEvent
         public static void onEvent(EntityJoinLevelEvent event) {
-            EntityDokiData data = event.getEntity().getData(DokiData.DOKI);
+            EntityDokiData data = DataAttachmentHelper.getOrCreate(DokiData.DOKI.get(), event.getEntity());
             if (!data.init && !event.getLevel().isClientSide) {
                 data = data
                         .withInit(true)
                         .withDoki(Math.random() < DokimobsConfig.CONFIG.spawnChance.get());
 
-                event.getEntity().setData(DokiData.DOKI, data);
+                DataAttachmentHelper.set(DokiData.DOKI.get(), event.getEntity(), data);
             }
         }
     }

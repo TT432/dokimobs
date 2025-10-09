@@ -16,6 +16,7 @@ import io.github.tt432.eyelib.client.loader.BrClientEntityLoader;
 import io.github.tt432.eyelib.client.model.bedrock.BrModelEntry;
 import io.github.tt432.eyelib.client.render.controller.RenderControllerEntry;
 import io.github.tt432.eyelib.util.client.NativeImages;
+import io.github.tt432.eyelib.util.codec.CodecHelper;
 import lombok.extern.slf4j.Slf4j;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
@@ -51,21 +52,21 @@ public record CosPackFileV1(
         public static final Codec<FileEntry> CODEC = RecordCodecBuilder.create(ins -> ins.group(
                 Codec.STRING.fieldOf("identifier").forGetter(FileEntry::identifier),
                 BrClientEntity.CODEC.fieldOf("entity").forGetter(FileEntry::entity),
-                Codec.dispatchedMap(Codec.STRING, name -> (Codec<Animation>) (Object) (name.startsWith("animation") ? BrAnimationEntry.codec(name) : BrAnimationController.CODEC)).fieldOf("animations").forGetter(o -> o.animations),
+                CodecHelper.dispatchedMap(Codec.STRING, name -> (Codec<Animation>) (Object) (name.startsWith("animation") ? BrAnimationEntry.codec(name) : BrAnimationController.CODEC)).fieldOf("animations").forGetter(o -> o.animations),
                 Codec.unboundedMap(Codec.STRING, RenderControllerEntry.CODEC).fieldOf("renderControllers").forGetter(FileEntry::renderControllers),
                 BrModelEntry.CODEC.listOf().fieldOf("models").forGetter(FileEntry::models),
                 Codec.unboundedMap(Codec.STRING, Codec.STRING).fieldOf("textures").forGetter(FileEntry::textureBase64s)
         ).apply(ins, FileEntry::new));
 
         public void onLoad() {
-            BrClientEntityLoader.INSTANCE.getEntities().put(ResourceLocation.parse(entity.identifier()), entity);
+            BrClientEntityLoader.INSTANCE.getEntities().put(new ResourceLocation(entity.identifier()), entity);
             animations.forEach((k, v) -> Eyelib.getAnimationManager().put(k, v));
             models.forEach(m -> Eyelib.getModelManager().put(m.name(), m));
             renderControllers.forEach((k, v) -> Eyelib.getRenderControllerManager().put(k, v));
             textureBase64s.forEach((k, v) -> {
                 try {
                     var ni = NativeImage.read(Base64.getDecoder().decode(v));
-                    Minecraft.getInstance().getTextureManager().register(ResourceLocation.parse(k), new DynamicTexture(ni));
+                    Minecraft.getInstance().getTextureManager().register(new ResourceLocation(k), new DynamicTexture(ni));
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -104,7 +105,7 @@ public record CosPackFileV1(
             Map<String, String> textureBase64s = new HashMap<>();
 
             for (String value : entity.textures().values()) {
-                String base64 = NativeImages.downloadImage(ResourceLocation.parse(value), ni -> {
+                String base64 = NativeImages.downloadImage(new ResourceLocation(value), ni -> {
                     try {
                         return Base64.getEncoder().encodeToString(ni.asByteArray());
                     } catch (IOException e) {
@@ -113,7 +114,7 @@ public record CosPackFileV1(
                 });
 
                 if (base64 == null) {
-                    base64 = NativeImages.downloadImage(ResourceLocation.parse(replacePng(value, ".png", ".tga")), ni -> {
+                    base64 = NativeImages.downloadImage(new ResourceLocation(replacePng(value, ".png", ".tga")), ni -> {
                         try {
                             return Base64.getEncoder().encodeToString(ni.asByteArray());
                         } catch (IOException e) {
@@ -157,10 +158,7 @@ public record CosPackFileV1(
 
         try (FileOutputStream fos = new FileOutputStream(path)) {
             DataResult<JsonElement> jsonElementDataResult = CODEC.encodeStart(JsonOps.INSTANCE, this);
-            JsonElement orThrow = jsonElementDataResult.getOrThrow(s -> {
-                log.error(s);
-                return new IllegalArgumentException(s);
-            });
+            JsonElement orThrow = jsonElementDataResult.getOrThrow(false, IllegalArgumentException::new);
             fos.write(new Gson().toJson(orThrow).getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
             log.error("", e);

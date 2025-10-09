@@ -1,24 +1,26 @@
 package io.github.tt432.dokimobs.data;
 
-import io.github.tt432.eyelib.Eyelib;
+import io.github.tt432.dokimobs.Dokimobs;
+import io.github.tt432.eyelib.capability.EyelibAttachableData;
+import io.github.tt432.eyelib.util.data_attach.DataAttachmentType;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
-import net.neoforged.neoforge.attachment.AttachmentType;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
-import net.neoforged.neoforge.registries.NeoForgeRegistries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.RegistryObject;
 
 /**
  * @author TT432
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class DokiData {
-    public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES =
-            DeferredRegister.create(NeoForgeRegistries.Keys.ATTACHMENT_TYPES, Eyelib.MOD_ID);
+    public static final DeferredRegister<DataAttachmentType<?>> DATA_ATTACHMENTS =
+            DeferredRegister.create(EyelibAttachableData.DATA_ATTACHMENTS_KEY, Dokimobs.MOD_ID);
 
-    public static final DeferredHolder<AttachmentType<?>, AttachmentType<EntityDokiData>> DOKI =
-            ATTACHMENT_TYPES.register("doki_data",
-                    () -> AttachmentType.builder(() -> new EntityDokiData(false, true))
-                            .serialize(EntityDokiData.CODEC)
-                            .build());
+    public static final RegistryObject<DataAttachmentType<EntityDokiData>> DOKI =
+            DATA_ATTACHMENTS.register("doki_data",
+                    () -> new DataAttachmentType<>(new ResourceLocation(Dokimobs.MOD_ID, "doki_data"),
+                            () -> new EntityDokiData(false, true),
+                            EntityDokiData.CODEC,
+                            EntityDokiData.STREAM_CODEC));
 }

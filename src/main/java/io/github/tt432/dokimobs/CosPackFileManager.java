@@ -22,7 +22,8 @@ import java.util.concurrent.Executors;
 public class CosPackFileManager {
     public CosPackFile load(JsonObject object) {
         return switch (object.get("version").getAsString()) {
-            case "1" -> CosPackFileV1.CODEC.parse(JsonOps.INSTANCE, object).getOrThrow();
+            case "1" ->
+                    CosPackFileV1.CODEC.parse(JsonOps.INSTANCE, object).getOrThrow(false, IllegalArgumentException::new);
             default -> throw new IllegalStateException("Unexpected value: " + object.get("version").getAsString());
         };
     }
