@@ -66,6 +66,7 @@ public class CosPackEntitiesListPanel extends ScrollPanel {
     private final List<EntityButton> filtedEntitiesList = new ArrayList<>();
     private boolean finished = false;
     public boolean onlyEntity = false;
+    private Font font;
 
     {
         CompletableFuture.runAsync(() -> {
@@ -81,20 +82,9 @@ public class CosPackEntitiesListPanel extends ScrollPanel {
         });
     }
 
-    public CosPackEntitiesListPanel(Minecraft client, int width, int height, int top, int left) {
+    public CosPackEntitiesListPanel(Minecraft client, Font font, int width, int height, int top, int left) {
         super(client, width, height, top, left);
-    }
-
-    public CosPackEntitiesListPanel(Minecraft client, int width, int height, int top, int left, int border) {
-        super(client, width, height, top, left, border);
-    }
-
-    public CosPackEntitiesListPanel(Minecraft client, int width, int height, int top, int left, int border, int barWidth) {
-        super(client, width, height, top, left, border, barWidth);
-    }
-
-    public CosPackEntitiesListPanel(Minecraft client, int width, int height, int top, int left, int border, int barWidth, int barBgColor, int barColor, int barBorderColor) {
-        super(client, width, height, top, left, border, barWidth, barBgColor, barColor, barBorderColor);
+        this.font = font;
     }
 
     String lastSearch = "";
@@ -129,15 +119,16 @@ public class CosPackEntitiesListPanel extends ScrollPanel {
 
     @Override
     protected int getContentHeight() {
-        return (lineAmount()+1) * slotSize();
+        return (lineAmount() + 1) * slotSize();
     }
 
+    @Getter
     private EntityButton hoverButton;
 
     @Override
     protected void drawPanel(GuiGraphics guiGraphics, int entryRight, int relativeY, Tesselator tess, int mouseX, int mouseY) {
         if (!finished) {
-            centeredString(guiGraphics, "正在加载", left, top, width, height);
+            centeredString(guiGraphics, font, "正在加载", left, top, width, height);
         } else {
             var slotSize = slotSize();
             var renderLine = (height - border * 2) / slotSize + 2;
@@ -198,17 +189,7 @@ public class CosPackEntitiesListPanel extends ScrollPanel {
         return false;
     }
 
-    @Override
-    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
-
-        if (hoverButton != null) {
-            guiGraphics.renderTooltip(Minecraft.getInstance().font, hoverButton.name, mouseX, mouseY);
-        }
-    }
-
-    private static void centeredString(GuiGraphics guiGraphics, String string, int x, int y, int w, int h) {
-        Font font = Minecraft.getInstance().font;
+    private static void centeredString(GuiGraphics guiGraphics, Font font, String string, int x, int y, int w, int h) {
         int th = font.lineHeight;
 
         int tw = font.width(string);

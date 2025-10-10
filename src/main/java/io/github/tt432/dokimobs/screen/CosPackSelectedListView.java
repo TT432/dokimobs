@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import io.github.tt432.eyelib.Eyelib;
 import io.github.tt432.eyelib.client.ClientTickHandler;
 import io.github.tt432.eyelib.client.gui.manager.EyelibManagerScreen;
+import lombok.Getter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -19,25 +20,12 @@ import java.util.List;
  */
 public class CosPackSelectedListView extends ScrollPanel {
     private final List<CosPackEntitiesListPanel.EntityButton> selected;
+    private final Font font;
 
-    public CosPackSelectedListView(Minecraft client, int width, int height, int top, int left, List<CosPackEntitiesListPanel.EntityButton> selected) {
+    public CosPackSelectedListView(Minecraft client,Font font, int width, int height, int top, int left, List<CosPackEntitiesListPanel.EntityButton> selected) {
         super(client, width, height, top, left);
         this.selected = selected;
-    }
-
-    public CosPackSelectedListView(Minecraft client, int width, int height, int top, int left, int border, List<CosPackEntitiesListPanel.EntityButton> selected) {
-        super(client, width, height, top, left, border);
-        this.selected = selected;
-    }
-
-    public CosPackSelectedListView(Minecraft client, int width, int height, int top, int left, int border, int barWidth, List<CosPackEntitiesListPanel.EntityButton> selected) {
-        super(client, width, height, top, left, border, barWidth);
-        this.selected = selected;
-    }
-
-    public CosPackSelectedListView(Minecraft client, int width, int height, int top, int left, int border, int barWidth, int barBgColor, int barColor, int barBorderColor, List<CosPackEntitiesListPanel.EntityButton> selected) {
-        super(client, width, height, top, left, border, barWidth, barBgColor, barColor, barBorderColor);
-        this.selected = selected;
+        this.font = font;
     }
 
     private int buttonPreLine() {
@@ -57,6 +45,7 @@ public class CosPackSelectedListView extends ScrollPanel {
         return lineAmount() * slotSize();
     }
 
+    @Getter
     private CosPackEntitiesListPanel.EntityButton hoverButton;
 
     @Override
@@ -118,23 +107,6 @@ public class CosPackSelectedListView extends ScrollPanel {
             return true;
         }
         return false;
-    }
-
-    @Override
-    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
-
-        if (hoverButton != null) {
-            guiGraphics.renderTooltip(Minecraft.getInstance().font, hoverButton.name, mouseX, mouseY);
-        }
-    }
-
-    private static void centeredString(GuiGraphics guiGraphics, String string, int x, int y, int w, int h) {
-        Font font = Minecraft.getInstance().font;
-        int th = font.lineHeight;
-
-        int tw = font.width(string);
-        guiGraphics.drawString(font, string, x + w / 2 - tw / 2, y + h / 2 - th / 2, 0xFFFFFFFF);
     }
 
     @Override
