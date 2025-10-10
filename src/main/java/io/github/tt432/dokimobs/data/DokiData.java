@@ -18,7 +18,8 @@ public class DokiData {
 
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<EntityDokiData>> DOKI =
             ATTACHMENT_TYPES.register("doki_data",
-                    () -> AttachmentType.builder(() -> new EntityDokiData(false, true))
+                    () -> AttachmentType.builder(() -> new EntityDokiData(false, false))
                             .serialize(EntityDokiData.CODEC)
+                            .sync(EntityDokiData.STREAM_CODEC)
                             .build());
 }
