@@ -15,7 +15,7 @@ tasks.named('wrapper', Wrapper).configure {
     distributionType = Wrapper.DistributionType.BIN
 }
 
-version = mod_version
+version = "${mod_version}+${minecraft_version}-forge"
 group = mod_group_id
 
 repositories {
@@ -117,7 +117,7 @@ obfuscation {
 }
 
 dependencies {
-    jarJar implementation('io.github.tt432:eyelib:21.1.10')
+    jarJar implementation('io.github.tt432:eyelib:21.1.10+1.20.1-forge')
     compileOnly 'org.jetbrains:annotations:26.0.2'
 }
 
