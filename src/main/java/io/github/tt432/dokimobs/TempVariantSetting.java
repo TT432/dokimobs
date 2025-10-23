@@ -18,6 +18,7 @@ import net.minecraft.world.entity.animal.horse.TraderLlama;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerDataHolder;
+import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RenderLivingEvent;
 import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.event.entity.living.LivingEvent;
@@ -176,7 +177,7 @@ public class TempVariantSetting {
         }
     }
 
-    @Mod.EventBusSubscriber
+    @Mod.EventBusSubscriber(Dist.CLIENT)
     public static final class ClientEvents {
         @SubscribeEvent(priority = EventPriority.HIGHEST)
         public static void onEvent(RenderLivingEvent.Pre event) {
