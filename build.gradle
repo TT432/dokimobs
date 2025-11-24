@@ -133,6 +133,18 @@ configurations {
 }
 repositories {
     mavenCentral()
+    repositories {
+        exclusiveContent {
+            forRepository {
+                maven {
+                    url "https://cursemaven.com"
+                }
+            }
+            filter {
+                includeGroup "curse.maven"
+            }
+        }
+    }
 }
 dependencies {
     // Specify the version of Minecraft to use.
@@ -143,7 +155,7 @@ dependencies {
     // For all intends and purposes: You can treat this dependency as if it is a normal library you would use.
     implementation "net.neoforged:neoforge:${neo_version}"
 
-    jarJar(implementation 'io.github.tt432:eyelib:21.1.11+1.21.1-neoforge')
+    implementation "curse.maven:eyelib-1388469:7242460-sources-7242465"
 }
 
 var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
