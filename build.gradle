@@ -155,7 +155,9 @@ dependencies {
     // For all intends and purposes: You can treat this dependency as if it is a normal library you would use.
     implementation "net.neoforged:neoforge:${neo_version}"
 
-    implementation "curse.maven:eyelib-1388469:7242460-sources-7242465"
+//    implementation "curse.maven:eyelib-1388469:7242460-sources-7242465"
+    implementation("maven.modrinth:eyelib:21.1.14")
+    implementation "curse.maven:t88-663112:6138989"
 }
 
 var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
