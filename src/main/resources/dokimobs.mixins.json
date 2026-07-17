@@ -5,7 +5,9 @@
   "compatibilityLevel": "JAVA_8",
   "refmap": "dokimobs.refmap.json",
   "mixins": [
+    //? if >=1.21 {
     "EntityTypeMixin"
+    //?}
   ],
   "client": [
   ],

@@ -1,19 +1,29 @@
+//? if >=1.21 {
 package io.github.tt432.dokimobs.screen;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.Tesselator;
-import io.github.tt432.eyelib.Eyelib;
-import io.github.tt432.eyelib.client.ClientTickHandler;
+import io.github.tt432.eyelib.bridge.Eyelib;
+import io.github.tt432.eyelib.bridge.client.ClientFrameTimePort;
+import io.github.tt432.eyelib.bridge.client.ClientTickHandler;
 import io.github.tt432.eyelib.client.gui.manager.EyelibManagerScreen;
+import io.github.tt432.eyelib.client.manager.ClientEntityManager;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+//? if !modern {
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.Tesselator;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.resources.ResourceLocation;
+//?} else {
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.resources.Identifier;
+//?}
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.client.gui.widget.ScrollPanel;
 import org.apache.commons.lang3.StringUtils;
 
@@ -55,7 +65,11 @@ public class CosPackEntitiesListPanel extends ScrollPanel {
     static class EntityButton {
         final String key;
         final Component name;
+        //? if !modern {
         final ResourceLocation icon;
+        //?} else {
+        final Identifier icon;
+        //?}
         final GuiAnimator animator = new GuiAnimator(5);
     }
 
@@ -70,6 +84,7 @@ public class CosPackEntitiesListPanel extends ScrollPanel {
 
     {
         CompletableFuture.runAsync(() -> {
+            //? if !modern {
             for (ResourceLocation resourceLocation : BuiltInRegistries.ENTITY_TYPE.keySet()) {
                 allEntitiesList.add(new EntityButton(
                         resourceLocation.toString(),
@@ -77,6 +92,15 @@ public class CosPackEntitiesListPanel extends ScrollPanel {
                         ResourceLocation.fromNamespaceAndPath(Eyelib.MOD_ID, "icons/entities/" + resourceLocation.toString().replace(":", "/"))
                 ));
             }
+            //?} else {
+            for (Identifier resourceLocation : BuiltInRegistries.ENTITY_TYPE.keySet()) {
+                allEntitiesList.add(new EntityButton(
+                        resourceLocation.toString(),
+                        BuiltInRegistries.ENTITY_TYPE.getValue(resourceLocation).getDescription(),
+                        Identifier.fromNamespaceAndPath(Eyelib.MOD_ID, "icons/entities/" + resourceLocation.toString().replace(":", "/"))
+                ));
+            }
+            //?}
             filtedEntitiesList.addAll(allEntitiesList);
             finished = true;
         });
@@ -97,7 +121,7 @@ public class CosPackEntitiesListPanel extends ScrollPanel {
         filtedEntitiesList.clear();
         for (EntityButton entityButton : allEntitiesList) {
             if ((StringUtils.contains(entityButton.key, input) || StringUtils.contains(entityButton.name.getString(), input)) &&
-                    (onlyEntity == (Eyelib.getClientEntityLoader().get(ResourceLocation.parse(entityButton.key)) != null))) {
+                    (onlyEntity == (ClientEntityManager.INSTANCE.get(entityButton.key) != null))) {
                 filtedEntitiesList.add(entityButton);
             }
         }
@@ -125,8 +149,13 @@ public class CosPackEntitiesListPanel extends ScrollPanel {
     @Getter
     private EntityButton hoverButton;
 
+    //? if !modern {
     @Override
     protected void drawPanel(GuiGraphics guiGraphics, int entryRight, int relativeY, Tesselator tess, int mouseX, int mouseY) {
+    //?} else {
+    @Override
+    protected void drawPanel(GuiGraphicsExtractor guiGraphics, int entryRight, int relativeY, int mouseX, int mouseY) {
+    //?}
         if (!finished) {
             centeredString(guiGraphics, font, "正在加载", left, top, width, height);
         } else {
@@ -151,7 +180,7 @@ public class CosPackEntitiesListPanel extends ScrollPanel {
                         float a;
 
                         if (!selected.contains(entityButton)) {
-                            a = entityButton.animator.getTime(ClientTickHandler.getTick(), Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(false), hover);
+                            a = entityButton.animator.getTime(ClientTickHandler.getTick(), ClientFrameTimePort.getGameTimeDeltaPartialTick(), hover);
                         } else {
                             a = 1;
                         }
@@ -166,6 +195,7 @@ public class CosPackEntitiesListPanel extends ScrollPanel {
         }
     }
 
+    //? if !modern {
     public static void renderEntityButton(GuiGraphics guiGraphics, int x, int y, int s, float a, EntityButton entityButton) {
         guiGraphics.blitSprite(ResourceLocation.fromNamespaceAndPath(Eyelib.MOD_ID, "gui_bg_nine"), x, y, s, s);
         RenderSystem.enableBlend();
@@ -176,7 +206,18 @@ public class CosPackEntitiesListPanel extends ScrollPanel {
 
         guiGraphics.blitSprite(entityButton.icon, x + 4, y + 4, s - 8, s - 8);
     }
+    //?} else {
+    public static void renderEntityButton(GuiGraphicsExtractor guiGraphics, int x, int y, int s, float a, EntityButton entityButton) {
+        guiGraphics.blitSprite(RenderPipelines.GUI_TEXTURED, Identifier.fromNamespaceAndPath(Eyelib.MOD_ID, "gui_bg_nine"), x, y, s, s);
+        // 选中/悬停渐显：颜色乘法 alpha（26.1 的 RenderSystem.setShaderColor 已移除）
+        int alphaColor = ((int) (a * 255) << 24) | 0xFFFFFF;
+        guiGraphics.blitSprite(RenderPipelines.GUI_TEXTURED, Identifier.fromNamespaceAndPath(Eyelib.MOD_ID, "gui_bg_nine_selected"), x, y, s, s, alphaColor);
 
+        guiGraphics.blitSprite(RenderPipelines.GUI_TEXTURED, entityButton.icon, x + 4, y + 4, s - 8, s - 8);
+    }
+    //?}
+
+    //? if !modern {
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (super.mouseClicked(mouseX, mouseY, button))
@@ -188,13 +229,35 @@ public class CosPackEntitiesListPanel extends ScrollPanel {
         }
         return false;
     }
+    //?} else {
+    @Override
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        if (super.mouseClicked(event, doubleClick))
+            return true;
 
+        if (hoverButton != null) {
+            selected.add(hoverButton);
+            return true;
+        }
+        return false;
+    }
+    //?}
+
+    //? if !modern {
     private static void centeredString(GuiGraphics guiGraphics, Font font, String string, int x, int y, int w, int h) {
         int th = font.lineHeight;
 
         int tw = font.width(string);
         guiGraphics.drawString(font, string, x + w / 2 - tw / 2, y + h / 2 - th / 2, 0xFFFFFFFF);
     }
+    //?} else {
+    private static void centeredString(GuiGraphicsExtractor guiGraphics, Font font, String string, int x, int y, int w, int h) {
+        int th = font.lineHeight;
+
+        int tw = font.width(string);
+        guiGraphics.text(font, string, x + w / 2 - tw / 2, y + h / 2 - th / 2, 0xFFFFFFFF);
+    }
+    //?}
 
     @Override
     public NarrationPriority narrationPriority() {
@@ -206,3 +269,4 @@ public class CosPackEntitiesListPanel extends ScrollPanel {
 
     }
 }
+//?}

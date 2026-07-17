@@ -1,12 +1,33 @@
 package io.github.tt432.dokimobs.config;
 
+//? if legacy {
+import net.minecraftforge.common.ForgeConfigSpec;
+//?} else {
 import net.neoforged.neoforge.common.ModConfigSpec;
+//?}
 import org.apache.commons.lang3.tuple.Pair;
 
 /**
  * @author TT432
  */
 public class DokimobsConfig {
+    //? if legacy {
+    public static final DokimobsConfig CONFIG;
+    public static final ForgeConfigSpec CONFIG_SPEC;
+    public final ForgeConfigSpec.DoubleValue spawnChance;
+
+    private DokimobsConfig(ForgeConfigSpec.Builder builder) {
+        spawnChance = builder.defineInRange("spawn_chance", 0.2, 0.0, 1.0);
+    }
+
+    static {
+        Pair<DokimobsConfig, ForgeConfigSpec> pair =
+                new ForgeConfigSpec.Builder().configure(DokimobsConfig::new);
+
+        CONFIG = pair.getLeft();
+        CONFIG_SPEC = pair.getRight();
+    }
+    //?} else {
     public static final DokimobsConfig CONFIG;
     public static final ModConfigSpec CONFIG_SPEC;
     public final ModConfigSpec.DoubleValue spawnChance;
@@ -22,4 +43,5 @@ public class DokimobsConfig {
         CONFIG = pair.getLeft();
         CONFIG_SPEC = pair.getRight();
     }
+    //?}
 }

@@ -68,7 +68,7 @@ type="required" #mandatory
 # Optional field describing why the dependency is required or why it is incompatible
 # reason="..."
 # The version range of the dependency
-versionRange="${neo_version_range}" #mandatory
+versionRange="${neoforge_version_range}" #mandatory
 # An ordering relationship for the dependency.
 # BEFORE - This mod is loaded BEFORE the dependency
 # AFTER - This mod is loaded AFTER the dependency
@@ -83,6 +83,13 @@ type="required"
 # This version range declares a minimum of the current minecraft version up to but not including the next major version
 versionRange="${minecraft_version_range}"
 ordering="NONE"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="eyelib"
+type="required"
+versionRange="[${eyelib_version},)"
+ordering="AFTER"
 side="BOTH"
 
 # Features are specific properties of the game environment, that you may want to declare you require. This example declares

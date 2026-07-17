@@ -1,23 +1,39 @@
+//? if >=1.21 {
 package io.github.tt432.dokimobs.screen;
 
 import io.github.tt432.dokimobs.CosPackFileManager;
 import io.github.tt432.dokimobs.CosPackFileV1;
 import io.github.tt432.dokimobs.DMKeys;
-import io.github.tt432.eyelib.Eyelib;
-import io.github.tt432.eyelib.client.entity.BrClientEntity;
+import io.github.tt432.eyelib.client.manager.ClientEntityManager;
+import io.github.tt432.eyelib.importer.entity.BrClientEntity;
 import net.minecraft.client.Minecraft;
+//? if !modern {
 import net.minecraft.client.gui.GuiGraphics;
+//?} else {
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+//?}
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+//? if !modern {
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RenderFrameEvent;
+//?} else {
+import net.minecraft.resources.Identifier;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.RenderFrameEvent;
+//?}
 
 /**
+ * 导出 cospack 的屏幕。仅 >=1.21：1.20.1 无 GuiGraphics sprite 体系，
+ * 与 1.20.1 分支现状一致（该分支本就无此功能）。
+ *
  * @author TT432
  */
 public class CosPackExportScreen extends Screen {
@@ -63,7 +79,7 @@ public class CosPackExportScreen extends Screen {
                 .build());
 
         addRenderableWidget(new Button.Builder(Component.literal("导出为 cospack"), b -> {
-            var file = CosPackFileV1.from(panel.getSelected().stream().map(s -> Eyelib.getClientEntityLoader().get(ResourceLocation.parse(s.key))).toArray(BrClientEntity[]::new));
+            var file = CosPackFileV1.from(panel.getSelected().stream().map(s -> ClientEntityManager.INSTANCE.get(s.key)).toArray(BrClientEntity[]::new));
             CosPackFileManager.export(file);
         })
                 .pos(border * 3 + leftAreaWidth * 2, height - inputHeight - border)
@@ -71,6 +87,7 @@ public class CosPackExportScreen extends Screen {
                 .build());
     }
 
+    //? if !modern {
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         super.render(guiGraphics, mouseX, mouseY, partialTick);
@@ -83,6 +100,20 @@ public class CosPackExportScreen extends Screen {
             guiGraphics.renderTooltip(font, view.getHoverButton().name, mouseX, mouseY);
         }
     }
+    //?} else {
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor gfx, int mouseX, int mouseY, float partialTick) {
+        super.extractRenderState(gfx, mouseX, mouseY, partialTick);
+
+        if (panel.getHoverButton() != null) {
+            gfx.setTooltipForNextFrame(font, panel.getHoverButton().name, mouseX, mouseY);
+        }
+
+        if (view.getHoverButton() != null) {
+            gfx.setTooltipForNextFrame(font, view.getHoverButton().name, mouseX, mouseY);
+        }
+    }
+    //?}
 
     void onEdited(String input) {
         panel.onEdited(input);
@@ -93,3 +124,4 @@ public class CosPackExportScreen extends Screen {
         return false;
     }
 }
+//?}

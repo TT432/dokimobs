@@ -1,30 +1,75 @@
 plugins {
-    id 'java-library'
-    id 'eclipse'
     id 'idea'
+    id 'java-library'
     id 'maven-publish'
-    id 'net.neoforged.moddev' version '2.0.88'
-    id "io.freefair.lombok" version "8.6"
+    id 'io.freefair.lombok'
 }
 
-tasks.named('wrapper', Wrapper).configure {
-    // Define wrapper values here so as to not have to always do so when updating gradlew.properties.
-    // Switching this to Wrapper.DistributionType.ALL will download the full gradle sources that comes with
-    // documentation attached on cursor hover of gradle classes and methods. However, this comes with increased
-    // file size for Gradle. If you do switch this to ALL, run the Gradle wrapper task twice afterwards.
-    // (Verify by checking gradle/wrapper/gradle-wrapper.properties to see if distributionUrl now points to `-all`)
-    distributionType = Wrapper.DistributionType.BIN
+// Stonecutter 0.9 centralScript: 此脚本对每个 version node (:1.20.1, :1.21.1, :26.1.2) 各跑一次。
+// 版本比较用 sc.current.parsed.matches（0.8+ API，替代旧 stonecutter.eval）。
+def isLegacyForge = sc.current.parsed.matches '<1.20.6'
+def isModern = sc.current.parsed.matches '>=26.1'
+
+// Stonecutter 常量：源码中用 //? if legacy / //? if modern 做三路分支
+stonecutter {
+    constants['legacy'] = isLegacyForge
+    constants['modern'] = isModern
 }
 
-version = "${mod_version}+${minecraft_version}-neoforge"
+// Stonecutter centralScript 不自动替换 sourceSet（0.7-0.9 均如此）：compileJava 默认编译 src/main/java，
+// 但加了 //? 注释后原始源码有裸露的 else 分支导致语法错误。
+// 必须让 sourceSet 指向 stonecutterGenerate 的生成目录。
+def stonecutterMainBase = layout.buildDirectory.dir('generated/stonecutter/main')
+sourceSets.main.java.srcDirs = [stonecutterMainBase.map { it.dir('java') }]
+sourceSets.main.resources.srcDirs = [stonecutterMainBase.map { it.dir('resources') }]
+compileJava.dependsOn 'stonecutterGenerate'
+processResources.dependsOn 'stonecutterGenerate'
+
+// Stonecutter file handler 处理 dokimobs.mixins.json 的 //? 版本条件（见 stonecutter.gradle 注册 inherit java→json）。
+// comment-out 策略产出含注释的 json5，剥离为纯 JSON 供 Mixin 运行时解析。
+def cleanGeneratedJson = tasks.register('cleanGeneratedJson') {
+    dependsOn 'stonecutterGenerate'
+    doLast {
+        def file = stonecutterMainBase.get().dir('resources').file('dokimobs.mixins.json').asFile
+        if (!file.exists()) return
+        def text = file.text
+        text = text.replaceAll(/(?s)\/\*.*?\*\//, '')
+        text = text.replaceAll(/\/\/[^\r\n]*/, '')
+        text = text.replaceAll(/,(\s*[\]\}])/, '$1')
+        file.text = groovy.json.JsonOutput.prettyPrint(
+                groovy.json.JsonOutput.toJson(new groovy.json.JsonSlurper().parseText(text))
+        )
+    }
+}
+processResources.dependsOn cleanGeneratedJson
+
+if (isLegacyForge) {
+    apply plugin: 'net.neoforged.moddev.legacyforge'
+} else {
+    apply plugin: 'net.neoforged.moddev'
+}
+
+if (project == rootProject) {
+    tasks.named('wrapper', Wrapper).configure {
+        distributionType = Wrapper.DistributionType.BIN
+    }
+}
+
+version = "${mod_version}+${minecraft_version}-${isLegacyForge ? 'forge' : 'neoforge'}"
 group = mod_group_id
 
 repositories {
     mavenCentral()
-    maven {
-        url = "https://api.modrinth.com/maven"
+    exclusiveContent {
+        forRepository {
+            mavenLocal()
+        }
+        // eyelib（及其拆分的模块）一律从本地 mavenLocal 解析（../qylEyelib 发布），
+        // 避免命中 Maven Central 上的旧版发布。
+        filter {
+            includeGroup "io.github.tt432"
+        }
     }
-    mavenLocal()
     exclusiveContent {
         forRepository {
             maven {
@@ -42,81 +87,90 @@ base {
     archivesName = mod_id
 }
 
-// Mojang ships Java 21 to end users starting in 1.20.5, so mods should target Java 21.
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+java.toolchain.languageVersion = JavaLanguageVersion.of(property('java_version') as int)
 
-//minecraft.accessTransformers.file rootProject.file('src/main/resources/META-INF/accesstransformer.cfg')
-//minecraft.accessTransformers.entry public net.minecraft.client.Minecraft textureManager # textureManager
+// eyelib 本地 mavenLocal 坐标（../qylEyelib 发布，见 settings.gradle 注释）
+def eyelibArtifact = "io.github.tt432:eyelib:${eyelib_version}+${minecraft_version}-${isLegacyForge ? 'forge' : 'neoforge'}"
 
-neoForge {
-    // Specify the version of NeoForge to use.
-    version = project.neo_version
+if (isLegacyForge) {
+    legacyForge {
+        version = project.minecraft_version + '-' + project.forge_version
 
-    parchment {
-        mappingsVersion = project.parchment_mappings_version
-        minecraftVersion = project.parchment_minecraft_version
-    }
-
-    // This line is optional. Access Transformers are automatically detected
-//    accessTransformers = project.files('src/main/resources/META-INF/accesstransformer.cfg')
-
-    // Default run configurations.
-    // These can be tweaked, removed, or duplicated as needed.
-    runs {
-        client {
-            client()
-
-            // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        parchment {
+            mappingsVersion = project.parchment_mappings_version
+            minecraftVersion = project.parchment_minecraft_version
         }
 
-        server {
-            server()
-            programArgument '--nogui'
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        runs {
+            client {
+                client()
+                systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+            }
+
+            server {
+                server()
+                programArgument '--nogui'
+                systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+            }
+
+            data {
+                data()
+                programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+            }
+
+            configureEach {
+                systemProperty 'forge.logging.markers', 'REGISTRIES'
+                logLevel = org.slf4j.event.Level.DEBUG
+            }
         }
 
-        // This run config launches GameTestServer and runs all registered gametests, then exits.
-        // By default, the server will crash when no gametests are provided.
-        // The gametest system is also enabled by default for other run configs under the /test command.
-        gameTestServer {
-            type = "gameTestServer"
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
-        }
-
-        data {
-            data()
-
-            // example of overriding the workingDirectory set in configureEach above, uncomment if you want to use it
-            // gameDirectory = project.file('run-data')
-
-            // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
-            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
-        }
-
-        // applies to all the run configs above
-        configureEach {
-            // Recommended logging data for a userdev environment
-            // The markers can be added/remove as needed separated by commas.
-            // "SCAN": For mods scan.
-            // "REGISTRIES": For firing of registry events.
-            // "REGISTRYDUMP": For getting the contents of all registries.
-            systemProperty 'forge.logging.markers', 'REGISTRIES'
-
-            // Recommended logging level for the console
-            // You can set various levels here.
-            // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
-            logLevel = org.slf4j.event.Level.DEBUG
+        mods {
+            "${mod_id}" {
+                sourceSet(sourceSets.main)
+            }
         }
     }
+} else {
+    neoForge {
+        version = project.neoforge_version
 
-    mods {
-        // define mod <-> source bindings
-        // these are used to tell the game which sources are for which mod
-        // mostly optional in a single mod project
-        // but multi mod projects should define one per mod
-        "${mod_id}" {
-            sourceSet(sourceSets.main)
+        // 26.1+ 去混淆，无需 parchment
+        if (!isModern) {
+            parchment {
+                mappingsVersion = project.parchment_mappings_version
+                minecraftVersion = project.parchment_minecraft_version
+            }
+        }
+
+        runs {
+            client {
+                client()
+                systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            }
+
+            server {
+                server()
+                programArgument '--nogui'
+                systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            }
+
+            if (!isModern) {
+                data {
+                    data()
+                    programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+                }
+            }
+
+            configureEach {
+                systemProperty 'forge.logging.markers', 'REGISTRIES'
+                logLevel = org.slf4j.event.Level.DEBUG
+            }
+        }
+
+        mods {
+            "${mod_id}" {
+                sourceSet(sourceSets.main)
+            }
         }
     }
 }
@@ -130,77 +184,146 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 // "optional", meaning it will not be pulled by dependents of this mod.
 configurations {
     runtimeClasspath.extendsFrom localRuntime
-}
-repositories {
-    mavenCentral()
-    repositories {
-        exclusiveContent {
-            forRepository {
-                maven {
-                    url "https://cursemaven.com"
-                }
-            }
-            filter {
-                includeGroup "curse.maven"
-            }
-        }
+    // 独立 configuration 用于解析 eyelib jar（不继承到 runtimeClasspath，避免 classpath 冲突）
+    eyelibJar {
+        canBeConsumed = false
+        canBeResolved = true
+        transitive = false
     }
 }
-dependencies {
-    // Specify the version of Minecraft to use.
-    // Depending on the plugin applied there are several options. We will assume you applied the userdev plugin as shown above.
-    // The group for userdev is net.neoforged, the module name is neoforge, and the version is the same as the neoforge version.
-    // You can however also use the vanilla plugin (net.neoforged.gradle.vanilla) to use a version of Minecraft without the neoforge loader.
-    // And its provides the option to then use net.minecraft as the group, and one of; client, server or joined as the module name, plus the game version as version.
-    // For all intends and purposes: You can treat this dependency as if it is a normal library you would use.
-    implementation "net.neoforged:neoforge:${neo_version}"
-
-//    implementation "curse.maven:eyelib-1388469:7242460-sources-7242465"
-    implementation("maven.modrinth:eyelib:21.1.14")
-    implementation "curse.maven:t88-663112:6138989"
+if (isLegacyForge) {
+    obfuscation {
+        createRemappingConfiguration(configurations.localRuntime)
+    }
 }
 
+dependencies {
+    // 显式添加 Lombok：MDG 可能重配置 annotationProcessorPath，覆盖 freefair lombok 插件自动添加的处理器。
+    compileOnly 'org.projectlombok:lombok:1.18.46'
+    annotationProcessor 'org.projectlombok:lombok:1.18.46'
+
+    compileOnly eyelibArtifact
+
+    // 运行时加载 eyelib mod：
+    // - 1.20.1 Forge：modLocalRuntime（MDG 自动 SRG→Mojmap remap + 注册 mod discovery；
+    //   必须用 modLocalRuntime，plain localRuntime 不 remap 会 NoSuchMethodError）
+    // - 1.21.1 NeoForge：MDG 不将 localRuntime 的外部 mod jar 注册到 mod discovery，
+    //   用 copyEyelibToMods 复制到 run/mods（禁止 localRuntime+mods/ 双份 → 类加载冲突）
+    // - 26.1 NeoForge：localRuntime 自动注册
+    if (isLegacyForge) {
+        modLocalRuntime eyelibArtifact
+    } else if (!isModern) {
+        eyelibJar eyelibArtifact
+    } else {
+        localRuntime eyelibArtifact
+    }
+
+    compileOnly 'org.jetbrains:annotations:26.0.2'
+}
+
+// 1.20.1 节点当前无任何 mixin（唯一的 EntityTypeMixin 门控为 >=1.21，passengerAttachments API）。
+// 不注册 mixin refmap——否则 reobfJar 会因缺失 dokimobs.refmap.json.mappings.tsrg 失败。
+// 若未来添加 <1.21 的 mixin，需恢复 mixin {} 块与 mixin AP：
+//   mixin { add sourceSets.main, "${mod_id}.refmap.json"; config "${mod_id}.mixins.json" }
+//   dependencies { annotationProcessor 'org.spongepowered:mixin:0.8.5:processor' }
+
+jar {
+    if (isLegacyForge) {
+        manifest.attributes([
+                "MixinConfigs": "${mod_id}.mixins.json"
+        ])
+    }
+}
+
+// 1.21.1 NeoForge：将 eyelib jar 复制到 run/mods 使其被 mod discovery 扫描到
+if (!isLegacyForge && !isModern) {
+    tasks.register('copyEyelibToMods', Copy) {
+        from(configurations.eyelibJar)
+        into project.file('run/mods')
+    }
+    tasks.matching { it.name == 'createMinecraftArtifacts' }.configureEach {
+        finalizedBy 'copyEyelibToMods'
+    }
+}
+
+// This block of code expands all declared replace properties in the specified resource targets.
 var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
     var replaceProperties = [
             minecraft_version      : minecraft_version,
             minecraft_version_range: minecraft_version_range,
-            neo_version            : neo_version,
-            neo_version_range      : neo_version_range,
-            loader_version_range   : loader_version_range,
+            forge_version          : findProperty('forge_version') ?: '',
+            forge_version_range    : findProperty('forge_version_range') ?: '',
+            loader_version_range   : findProperty('loader_version_range') ?: '',
+            neoforge_version       : findProperty('neoforge_version') ?: '',
+            neoforge_version_range : findProperty('neoforge_version_range') ?: '',
             mod_id                 : mod_id,
             mod_name               : mod_name,
             mod_license            : mod_license,
             mod_version            : mod_version,
             mod_authors            : mod_authors,
-            mod_description        : mod_description
+            mod_description        : mod_description,
+            pack_format_number     : pack_format_number,
+            eyelib_version         : eyelib_version
     ]
     inputs.properties replaceProperties
     expand replaceProperties
-    from "src/main/templates"
+    from stonecutterMainBase.map { it.dir('templates') }
+    // NeoForge 1.20.6+ requires neoforge.mods.toml; Forge 1.20.1 requires mods.toml
+    if (isLegacyForge) {
+        exclude 'META-INF/neoforge.mods.toml'
+    } else {
+        exclude 'META-INF/mods.toml'
+    }
     into "build/generated/sources/modMetadata"
 }
+generateModMetadata.configure { dependsOn 'stonecutterGenerate' }
 // Include the output of "generateModMetadata" as an input directory for the build
 // this works with both building through Gradle and the IDE.
 sourceSets.main.resources.srcDir generateModMetadata
 // To avoid having to run "generateModMetadata" manually, make it run on every project reload
-neoForge.ideSyncTask generateModMetadata
+if (isLegacyForge) {
+    legacyForge.ideSyncTask generateModMetadata
+} else {
+    neoForge.ideSyncTask generateModMetadata
+}
 
-// Example configuration to allow publishing using the maven-publish plugin
+// Stonecutter //? 预处理输出（build/generated/stonecutter/）被 ModDevGradle createMinecraftArtifacts 读取，
+// 需显式声明 task 依赖，否则 Gradle task validation 报 implicit_dependency 错误。
+tasks.matching { it.name == 'createMinecraftArtifacts' }.configureEach {
+    dependsOn tasks.matching { it.name == 'stonecutterGenerate' }
+}
+
 publishing {
     publications {
-        register('mavenJava', MavenPublication) {
+        mavenJava(MavenPublication) {
+            // stonecutter node 的 project.name 是版本号，artifactId 必须显式固定为 mod_id
+            artifactId = mod_id
             from components.java
+            suppressPomMetadataWarningsFor('reobfApiElements')
+            suppressPomMetadataWarningsFor('reobfRuntimeElements')
         }
     }
     repositories {
+        mavenLocal()
         maven {
-            url "file://${project.projectDir}/repo"
+            url "file://${project.rootProject.projectDir}/repo"
         }
     }
 }
 
 tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+    options.encoding = 'UTF-8'
+    options.compilerArgs += ['-Xmaxerrs', '1000', '-Xmaxwarns', '100']
+    // Java 21+ javac 模块封装阻止 Lombok 访问内部 API，需 javaagent + --add-opens。
+    // javaagent 方式同时规避 Lombok 1.18.46 在 Java 25 javac 上的初始化崩溃。
+    def lombokJar = configurations.detachedConfiguration(
+            dependencies.create('org.projectlombok:lombok:1.18.46')
+    ).singleFile
+    options.fork = true
+    options.forkOptions.jvmArgs += "-javaagent:${lombokJar.absolutePath}".toString()
+    ['code', 'comp', 'file', 'main', 'model', 'parser', 'processing', 'tree', 'util', 'api', 'jvm'].each { pkg ->
+        options.forkOptions.jvmArgs += ['--add-opens', "jdk.compiler/com.sun.tools.javac.${pkg}=ALL-UNNAMED".toString()]
+    }
 }
 
 // IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.
@@ -209,27 +332,4 @@ idea {
         downloadSources = true
         downloadJavadoc = true
     }
-}
-
-tasks.register("runWithRenderDoc", Exec) {
-    def javaExecTask = tasks.withType(JavaExec).named("runClient").get()
-    def javaHome = javaExecTask.javaLauncher.get().metadata.installationPath.asFile.absolutePath
-
-    commandLine = [
-            "E:\\RenderDoc\\renderdoccmd.exe",
-            "capture",
-            "--opt-hook-children",
-            "--wait-for-exit",
-            "--working-dir",
-            ".",
-            "$javaHome/bin/java.exe",
-            "-Xmx64m",
-            "-Xms64m",
-            "-Dorg.gradle.appname=gradlew",
-            "-Dorg.gradle.java.home=$javaHome",
-            "-classpath",
-            "gradle/wrapper/gradle-wrapper.jar",
-            "org.gradle.wrapper.GradleWrapperMain",
-            "runClient"
-    ]
 }

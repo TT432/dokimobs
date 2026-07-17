@@ -117,3 +117,14 @@ runs/
 
 # Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)
 !gradle-wrapper.jar
+
+# stonecutter / build runtime
+logs/
+repo/
+
+# local tooling
+.vscode/
+.bloop/
+.metals/
+.cache/
+.AddCompLib/

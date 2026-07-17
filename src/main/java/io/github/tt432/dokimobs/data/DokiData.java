@@ -1,25 +1,31 @@
 package io.github.tt432.dokimobs.data;
 
-import io.github.tt432.eyelib.Eyelib;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
-import net.neoforged.neoforge.attachment.AttachmentType;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
-import net.neoforged.neoforge.registries.NeoForgeRegistries;
+import io.github.tt432.eyelib.bridge.attachment.dataattach.mc.adapter.DataAttachmentTypeRegistry;
+import io.github.tt432.eyelib.util.dataattach.DataAttachmentType;
+
+import java.util.function.Supplier;
 
 /**
+ * dokimobs 的实体附属数据类型注册。
+ * 统一走 eyelib 的 DataAttachment 体系（三版本同一 API），
+ * DeferredRegister 由 eyelib 在 mod 构造时挂到事件总线，这里只需在 registry 事件前完成类加载。
+ *
  * @author TT432
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class DokiData {
-    public static final DeferredRegister<AttachmentType<?>> ATTACHMENT_TYPES =
-            DeferredRegister.create(NeoForgeRegistries.Keys.ATTACHMENT_TYPES, Eyelib.MOD_ID);
+    public static final Supplier<DataAttachmentType<EntityDokiData>> DOKI =
+            DataAttachmentTypeRegistry.DATA_ATTACHMENTS.register("doki_data",
+                    () -> new DataAttachmentType<>("eyelib:doki_data",
+                            () -> new EntityDokiData(false, false),
+                            EntityDokiData.CODEC,
+                            EntityDokiData.STREAM_CODEC));
 
-    public static final DeferredHolder<AttachmentType<?>, AttachmentType<EntityDokiData>> DOKI =
-            ATTACHMENT_TYPES.register("doki_data",
-                    () -> AttachmentType.builder(() -> new EntityDokiData(false, false))
-                            .serialize(EntityDokiData.CODEC)
-                            .sync(EntityDokiData.STREAM_CODEC)
-                            .build());
+    private DokiData() {
+    }
+
+    /**
+     * 触发本类静态初始化以完成注册（no-op）。
+     */
+    public static void init() {
+    }
 }
