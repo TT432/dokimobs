@@ -1,0 +1,217 @@
+{
+  "format_version": "1.10.0",
+  "animation_controllers": {
+    "controller.animation.mdsj_wanderer.move": {
+      "initial_state": "default",
+      "states": {
+        "default": {
+          "transitions": [
+            {
+              "flee": "query.is_avoiding_mobs",
+              "float": "q.is_in_water"
+            }
+          ],
+          "blend_transition": 0.2,
+          "animations": [
+            {
+              "move": "query.modified_move_speed*1.4"
+            }
+          ]
+        },
+        "flee": {
+          "transitions": [
+            {
+              "float": "q.is_in_water",
+              "default": "!query.is_avoiding_mobs&&query.any_animation_finished"
+            }
+          ],
+          "blend_transition": 0.2,
+          "animations": [
+            {
+              "run": "query.modified_move_speed*1.4"
+            }
+          ]
+        },
+        "float": {
+          "transitions": [
+            {
+              "default": "!q.is_in_water&&q.is_on_ground"
+            }
+          ],
+          "blend_transition": 0.2,
+          "animations": [
+            {
+              "float": "q.is_moving",
+              "swim_idle": "!q.is_moving"
+            }
+          ]
+        }
+      }
+    },
+    "controller.animation.mdsj_villager.ride": {
+      "initial_state": "default",
+      "states": {
+        "default": {
+          "transitions": [
+            {
+              "is_riding": "q.is_riding"
+            }
+          ],
+          "animations": [
+            {
+              "controller_move": "1.0",
+              "controller_jump": "1.0",
+              "controller_land": "1.0",
+              "controller_fall": "1.0"
+            }
+          ]
+        },
+        "is_riding": {
+          "transitions": [
+            {
+              "default": "!q.is_riding"
+            }
+          ],
+          "animations": [
+            {
+              "riding.legs": "1.0",
+              "contraction": "1.0"
+            }
+          ]
+        }
+      }
+    },
+    "controller.animation.doki_guardian.move": {
+      "initial_state": "default",
+      "states": {
+        "default": {
+          "animations": [
+            {
+              "idle": "!q.is_in_water&&!q.is_moving",
+              "swim_idle": "q.is_in_water&&!q.is_moving",
+              "walk": "!q.is_in_water&&q.is_moving",
+              "swim": "q.is_in_water&&q.is_moving"
+            }
+          ]
+        }
+      }
+    },
+    "controller.animation.doki_wolf.tail": {
+      "initial_state": "default",
+      "states": {
+        "default": {
+          "animations": [
+            {
+              "tail": "!q.is_sleeping"
+            }
+          ]
+        }
+      }
+    },
+    "controller.animation.doki_wolf.attack": {
+      "initial_state": "default",
+      "states": {
+        "default": {
+          "transitions": [
+            {
+              "attacking": "q.is_attacking||q.is_angry"
+            }
+          ]
+        },
+        "attacking": {
+          "transitions": [
+            {
+              "default": "!q.is_attacking&&!q.is_angry&&q.any_animation_finished"
+            }
+          ],
+          "blend_transition": 0.1,
+          "animations": [
+            {
+              "attack": "1.0"
+            }
+          ]
+        }
+      }
+    },
+    "controller.animation.doki_pillager.arms": {
+      "initial_state": "default",
+      "states": {
+        "default": {
+          "transitions": [
+            {
+              "aiming": "q.is_attacking||q.has_target"
+            }
+          ],
+          "animations": [
+            {
+              "arms_down": "1.0"
+            }
+          ]
+        },
+        "aiming": {
+          "transitions": [
+            {
+              "default": "!q.is_attacking&&!q.has_target"
+            }
+          ],
+          "blend_transition": 0.15,
+          "animations": [
+            {
+              "raise_arms": "1.0"
+            }
+          ]
+        }
+      }
+    },
+    "controller.animation.doki_blaze.move": {
+      "initial_state": "default",
+      "states": {
+        "default": {
+          "animations": [
+            {
+              "idle": "!q.is_moving",
+              "move": "q.is_moving"
+            }
+          ]
+        }
+      }
+    },
+    "controller.animation.doki_blaze.attack": {
+      "initial_state": "default",
+      "states": {
+        "default": {
+          "transitions": [
+            {
+              "attacking": "q.is_attacking"
+            }
+          ]
+        },
+        "attacking": {
+          "transitions": [
+            {
+              "default": "!q.is_attacking&&q.any_animation_finished"
+            }
+          ],
+          "blend_transition": 0.1,
+          "animations": [
+            {
+              "attack": "1.0"
+            }
+          ]
+        }
+      }
+    },
+    "controller.animation.doki_blaze.ambient": {
+      "initial_state": "default",
+      "states": {
+        "default": {
+          "animations": [
+            {
+              "hair": "1.0"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

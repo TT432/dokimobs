@@ -1,0 +1,53 @@
+{
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "minecraft:blaze",
+      "materials": {
+        "default": "cutout"
+      },
+      "textures": {
+        "default": "dokimobs:textures/entity/bbmodel/blaze"
+      },
+      "geometry": {
+        "default": "geometry.doki_blaze"
+      },
+      "animations": {
+        "blink": "animation.mdsj_entity.blink",
+        "idle": "dokimobs.blaze.待机",
+        "idle_state": "dokimobs.blaze.待机状态",
+        "pose": "dokimobs.blaze.pose",
+        "move": "dokimobs.blaze.前进",
+        "move_back": "dokimobs.blaze.后退",
+        "attack": "dokimobs.blaze.攻击A",
+        "attack_state": "dokimobs.blaze.攻击状态",
+        "hair": "dokimobs.blaze.头发主动飘动备份-中等幅度",
+        "parallel": "dokimobs.blaze.并行",
+        "controller_blink": "controller.animation.mdsj_blink",
+        "move_ctl": "controller.animation.doki_blaze.move",
+        "attack_ctl": "controller.animation.doki_blaze.attack",
+        "ambient_ctl": "controller.animation.doki_blaze.ambient"
+      },
+      "scripts": {
+        "animate": [
+          {
+            "controller_blink": [
+              "1.0"
+            ],
+            "move_ctl": [
+              "1.0"
+            ],
+            "attack_ctl": [
+              "1.0"
+            ],
+            "ambient_ctl": [
+              "1.0"
+            ]
+          }
+        ]
+      },
+      "render_controllers": [
+        "controller.render.doki_blaze"
+      ]
+    }
+  }
+}

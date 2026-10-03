@@ -1,0 +1,57 @@
+{
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "minecraft:wandering_trader",
+      "materials": {
+        "default": "cutout"
+      },
+      "textures": {
+        "default": "dokimobs:textures/entity/bbmodel/wandering_trader"
+      },
+      "geometry": {
+        "default": "geometry.doki_wandering_trader"
+      },
+      "animations": {
+        "blink": "animation.mdsj_entity.blink",
+        "idle_0": "dokimobs.wandering_trader.待机",
+        "idle_1": "dokimobs.wandering_trader.待机",
+        "idle_timer": "animation.mdsj_idle_timer_short",
+        "move": "dokimobs.wandering_trader.走路",
+        "run": "dokimobs.wandering_trader.跑步",
+        "float": "dokimobs.wandering_trader.游泳移动",
+        "swim": "dokimobs.wandering_trader.游泳移动",
+        "swim_idle": "dokimobs.wandering_trader.游泳待机",
+        "jump": "dokimobs.wandering_trader.起跳",
+        "fall": "dokimobs.wandering_trader.下落",
+        "land": "dokimobs.wandering_trader.落地",
+        "jump_timer": "animation.mdsj_jump_timer",
+        "drink": "dokimobs.wandering_trader.喝药水",
+        "controller_move": "controller.animation.mdsj_wanderer.move",
+        "controller_jump": "controller.animation.mdsj_jump",
+        "controller_land": "controller.animation.mdsj_land",
+        "controller_fall": "controller.animation.mdsj_zombie.fall",
+        "idle_anim": "controller.animation.mdsj_entity.idle",
+        "controller_blink": "controller.animation.mdsj_blink",
+        "is_riding": "controller.animation.mdsj_villager.ride"
+      },
+      "scripts": {
+        "animate": [
+          {
+            "controller_blink": [
+              "1.0"
+            ],
+            "idle_anim": [
+              "1.0"
+            ],
+            "is_riding": [
+              "1.0"
+            ]
+          }
+        ]
+      },
+      "render_controllers": [
+        "controller.render.doki_wandering_trader"
+      ]
+    }
+  }
+}

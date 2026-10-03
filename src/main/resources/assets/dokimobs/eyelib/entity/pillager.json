@@ -1,0 +1,57 @@
+{
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "minecraft:pillager",
+      "materials": {
+        "default": "cutout"
+      },
+      "textures": {
+        "default": "dokimobs:textures/entity/bbmodel/pillager"
+      },
+      "geometry": {
+        "default": "geometry.doki_pillager"
+      },
+      "animations": {
+        "blink": "animation.mdsj_entity.blink",
+        "idle_0": "dokimobs.pillager.待机（躯体）",
+        "idle_1": "dokimobs.pillager.待机（躯体）",
+        "idle_timer": "animation.mdsj_idle_timer_short",
+        "walk": "dokimobs.pillager.行走",
+        "run": "dokimobs.pillager.奔跑",
+        "float": "dokimobs.pillager.游泳（躯体）",
+        "jump": "dokimobs.pillager.跳跃",
+        "raise_arms": "dokimobs.pillager.待机（手臂）抬起",
+        "arms_down": "dokimobs.pillager.待机（手臂）放下",
+        "movement": "controller.animation.mdsj_cow_movement",
+        "controller_jump": "controller.animation.mdsj_jump",
+        "idle_anim": "controller.animation.mdsj_entity.idle",
+        "controller_blink": "controller.animation.mdsj_blink",
+        "arms_ctl": "controller.animation.doki_pillager.arms"
+      },
+      "scripts": {
+        "animate": [
+          {
+            "controller_blink": [
+              "1.0"
+            ],
+            "idle_anim": [
+              "1.0"
+            ],
+            "movement": [
+              "1.0"
+            ],
+            "controller_jump": [
+              "1.0"
+            ],
+            "arms_ctl": [
+              "1.0"
+            ]
+          }
+        ]
+      },
+      "render_controllers": [
+        "controller.render.doki_pillager"
+      ]
+    }
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "format_version": "1.10.0",
+  "render_controllers": {
+    "controller.render.doki_wandering_trader": {
+      "materials": [
+        {
+          "*": [
+            "Material.default"
+          ]
+        }
+      ],
+      "geometry": [
+        "Geometry.default"
+      ],
+      "textures": [
+        [
+          "Texture.default"
+        ]
+      ]
+    },
+    "controller.render.doki_wolf": {
+      "materials": [
+        {
+          "*": [
+            "Material.default"
+          ]
+        }
+      ],
+      "geometry": [
+        "Geometry.default"
+      ],
+      "textures": [
+        [
+          "Texture.default"
+        ]
+      ]
+    },
+    "controller.render.doki_guardian": {
+      "materials": [
+        {
+          "*": [
+            "Material.default"
+          ]
+        }
+      ],
+      "geometry": [
+        "Geometry.default"
+      ],
+      "textures": [
+        [
+          "Texture.default"
+        ]
+      ]
+    },
+    "controller.render.doki_pillager": {
+      "materials": [
+        {
+          "*": [
+            "Material.default"
+          ]
+        }
+      ],
+      "geometry": [
+        "Geometry.default"
+      ],
+      "textures": [
+        [
+          "Texture.default"
+        ]
+      ]
+    },
+    "controller.render.doki_blaze": {
+      "materials": [
+        {
+          "*": [
+            "Material.default"
+          ]
+        }
+      ],
+      "geometry": [
+        "Geometry.default"
+      ],
+      "textures": [
+        [
+          "Texture.default"
+        ]
+      ]
+    }
+  }
+}

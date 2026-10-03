@@ -1,0 +1,42 @@
+{
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "minecraft:guardian",
+      "materials": {
+        "default": "cutout"
+      },
+      "textures": {
+        "default": "dokimobs:textures/entity/bbmodel/guardian"
+      },
+      "geometry": {
+        "default": "geometry.doki_guardian"
+      },
+      "animations": {
+        "blink": "animation.mdsj_entity.blink",
+        "idle": "dokimobs.guardian.idle",
+        "walk": "dokimobs.guardian.walk",
+        "run": "dokimobs.guardian.run",
+        "swim": "dokimobs.guardian.swim",
+        "swim_idle": "dokimobs.guardian.swim_stand",
+        "jump": "dokimobs.guardian.jump",
+        "controller_blink": "controller.animation.mdsj_blink",
+        "move_ctl": "controller.animation.doki_guardian.move"
+      },
+      "scripts": {
+        "animate": [
+          {
+            "controller_blink": [
+              "1.0"
+            ],
+            "move_ctl": [
+              "1.0"
+            ]
+          }
+        ]
+      },
+      "render_controllers": [
+        "controller.render.doki_guardian"
+      ]
+    }
+  }
+}

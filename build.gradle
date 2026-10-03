@@ -190,6 +190,12 @@ configurations {
         canBeResolved = true
         transitive = false
     }
+    // clientsmoke（AIDebugServer 调试端口）独立解析配置，同 eyelibJar 不继承 runtimeClasspath
+    clientsmokeJar {
+        canBeConsumed = false
+        canBeResolved = true
+        transitive = false
+    }
 }
 if (isLegacyForge) {
     obfuscation {
@@ -203,6 +209,16 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok:1.18.46'
 
     compileOnly eyelibArtifact
+
+    // clientsmoke 调试 mod（mcmcp/AIDebugServer）：运行时加载规则同 eyelib（见下方注释）
+    def clientsmokeArtifact = "io.github.tt432:clientsmoke:${eyelib_version}+${minecraft_version}-${isLegacyForge ? 'forge' : 'neoforge'}"
+    if (isLegacyForge) {
+        modLocalRuntime clientsmokeArtifact
+    } else if (!isModern) {
+        clientsmokeJar clientsmokeArtifact
+    } else {
+        localRuntime clientsmokeArtifact
+    }
 
     // 运行时加载 eyelib mod：
     // - 1.20.1 Forge：modLocalRuntime（MDG 自动 SRG→Mojmap remap + 注册 mod discovery；
@@ -237,9 +253,17 @@ jar {
 
 // 1.21.1 NeoForge：将 eyelib jar 复制到 run/mods 使其被 mod discovery 扫描到
 if (!isLegacyForge && !isModern) {
+    // 复制前先清掉 run/mods 里同名 artifact 的旧版本 jar（additive copy 不覆盖删除，
+    // 旧版本残留会同 modid 双加载）
+    def eyelibModsDir = project.file('run/mods')
     tasks.register('copyEyelibToMods', Copy) {
         from(configurations.eyelibJar)
-        into project.file('run/mods')
+        from(configurations.clientsmokeJar)
+        into eyelibModsDir
+        doFirst {
+            eyelibModsDir.listFiles((dir, name) ->
+                    name.startsWith('eyelib-') || name.startsWith('clientsmoke-'))?.each { it.delete() }
+        }
     }
     tasks.matching { it.name == 'createMinecraftArtifacts' }.configureEach {
         finalizedBy 'copyEyelibToMods'

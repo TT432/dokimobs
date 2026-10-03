@@ -1,0 +1,67 @@
+{
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "minecraft:wolf",
+      "materials": {
+        "default": "cutout"
+      },
+      "textures": {
+        "default": "dokimobs:textures/entity/bbmodel/wolf"
+      },
+      "geometry": {
+        "default": "geometry.doki_wolf"
+      },
+      "animations": {
+        "blink": "animation.mdsj_entity.blink",
+        "idle_0": "dokimobs.wolf.待机",
+        "idle_1": "dokimobs.wolf.待机",
+        "idle_timer": "animation.mdsj_idle_timer_short",
+        "walk": "dokimobs.wolf.走路",
+        "run": "dokimobs.wolf.跑步",
+        "swim": "dokimobs.wolf.游泳移动",
+        "swim_idle": "dokimobs.wolf.游泳待机",
+        "jump": "dokimobs.wolf.起跳",
+        "fall": "dokimobs.wolf.下落",
+        "land": "dokimobs.wolf.落地",
+        "jump_timer": "animation.mdsj_jump_timer",
+        "tail": "dokimobs.wolf.尾巴",
+        "attack": "dokimobs.wolf.攻击A",
+        "shake": "dokimobs.wolf.抖水",
+        "movement": "controller.animation.mdsj_sheep_anim.movement",
+        "in_air": "controller.animation.mdsj_in_air",
+        "land_ctl": "controller.animation.mdsj_quadruped_land",
+        "idle_anim": "controller.animation.mdsj_entity.idle",
+        "controller_blink": "controller.animation.mdsj_blink",
+        "tail_ctl": "controller.animation.doki_wolf.tail",
+        "attack_ctl": "controller.animation.doki_wolf.attack"
+      },
+      "scripts": {
+        "animate": [
+          {
+            "controller_blink": [
+              "1.0"
+            ],
+            "idle_anim": [
+              "1.0"
+            ],
+            "movement": [
+              "1.0"
+            ],
+            "in_air": [
+              "1.0"
+            ],
+            "tail_ctl": [
+              "1.0"
+            ],
+            "attack_ctl": [
+              "1.0"
+            ]
+          }
+        ]
+      },
+      "render_controllers": [
+        "controller.render.doki_wolf"
+      ]
+    }
+  }
+}
