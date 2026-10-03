@@ -32,7 +32,12 @@ assets/dokimobs/eyelib/animation_controllers/doki.json 迁移+新建控制器
   补 `model_identifier = geometry.doki_<entity>`（bbmodel 原值为空或乱填如"羊驼"）。
 - **bbmodel 无控制器数据**：`rete_animation_controller_layout` 字段 eyelib 不解析，且本批 5 个文件
   该字段全为空。控制器只能手写 json（BrAnimationControllerSet 格式，initial_state 为字符串）。
-- **flipAnimation**：eyelib ≥21.1.15 bbmodel 与 geo 路径统一为 true；21.1.14 混用会镜像。
+- **bbmodel 动画坐标约定（21.1.16 修正）**：bbmodel 存的是 Blockbench 显示空间值（Blockbench
+  基岩导出器在导出边界无条件 invertMolang：position.x、rotation.x/y，见 blockbench 源码
+  bedrock_animation.js getKeyframeDataPoints）。eyelib BbModelAnimations 在转换期做同样取反，
+  注册表内剪辑统一为基岩剪辑空间，渲染期 flipAnimation=true（geo/bbmodel 模型均为 true）补偿一次
+  即还原编辑器姿态。eyelib 9754bbea 曾改为"透传+渲染期补偿"，实机姿态镜像（守卫者三叉戟换手），
+  21.1.16 已回退该错误并补 molang 表达式 `-(...)` 包裹取反。21.1.15 直载管线渲染的 bbmodel 动画均为镜像。
 - **贴图上传键**：实体 json `textures.default = dokimobs:textures/entity/bbmodel/<entity>`
   （codec 自动补 .png），与 DokiBbModelLoader 的上传键一一对应。
 - **1.21.1 run/mods 版本残留**：copyEyelibToMods 是 additive copy，已加 doFirst 清理同 artifact 旧 jar。
