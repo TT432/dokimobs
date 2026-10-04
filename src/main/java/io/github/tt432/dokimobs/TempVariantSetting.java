@@ -218,9 +218,8 @@ public class TempVariantSetting {
         public static void onEvent(RenderLivingEvent.Pre<?, ?> event) {
             Entity entity = event.getEntity();
             EntityDokiData dokiData = DataAttachmentHelper.getOrCreate(DokiData.DOKI.get(), entity);
-            if (!dokiData.doki()) {
-                RenderData.getComponent(entity).setUseBuiltInRenderSystem(false);
-            }
+            // 每帧双向设置：doki 同步晚于首帧渲染时，避免 false 粘性导致永久原版渲染
+            RenderData.getComponent(entity).setUseBuiltInRenderSystem(dokiData.doki());
         }
         //?} else {
         public static <T extends LivingEntity, S extends LivingEntityRenderState, M extends net.minecraft.client.model.EntityModel<? super S>>
@@ -230,9 +229,8 @@ public class TempVariantSetting {
             if (entity == null) return;
 
             EntityDokiData dokiData = DataAttachmentHelper.getOrCreate(DokiData.DOKI.get(), entity);
-            if (!dokiData.doki()) {
-                RenderData.getComponent(entity).setUseBuiltInRenderSystem(false);
-            }
+            // 每帧双向设置：doki 同步晚于首帧渲染时，避免 false 粘性导致永久原版渲染
+            RenderData.getComponent(entity).setUseBuiltInRenderSystem(dokiData.doki());
         }
 
         /**
