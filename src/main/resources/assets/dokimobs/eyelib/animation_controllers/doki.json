@@ -133,13 +133,143 @@
         }
       }
     },
-    "controller.animation.doki_pillager.arms": {
-      "initial_state": "default",
+    "controller.animation.doki_pillager.movement": {
+      "initial_state": "walk",
       "states": {
-        "default": {
+        "walk": {
           "transitions": [
             {
-              "aiming": "q.is_attacking||q.has_target"
+              "run": "q.has_target&&q.is_moving"
+            },
+            {
+              "float": "q.is_in_water"
+            },
+            {
+              "air": "!q.is_on_ground&&!q.is_in_water"
+            }
+          ],
+          "blend_transition": 0.12,
+          "animations": [
+            {
+              "walk": "q.modified_move_speed*1.6"
+            }
+          ]
+        },
+        "run": {
+          "transitions": [
+            {
+              "walk": "!q.has_target"
+            },
+            {
+              "float": "q.is_in_water"
+            },
+            {
+              "air": "!q.is_on_ground&&!q.is_in_water"
+            }
+          ],
+          "blend_transition": 0.12,
+          "animations": [
+            {
+              "run": "q.modified_move_speed*1.36"
+            }
+          ]
+        },
+        "float": {
+          "transitions": [
+            {
+              "walk": "!q.is_in_water&&q.is_on_ground"
+            }
+          ],
+          "blend_transition": 0.24,
+          "animations": [
+            {
+              "float": "1.0"
+            }
+          ]
+        },
+        "air": {
+          "transitions": [
+            {
+              "walk": "q.is_on_ground&&!q.is_in_water"
+            },
+            {
+              "float": "q.is_in_water"
+            }
+          ],
+          "blend_transition": 0.15,
+          "animations": [
+            {
+              "jump": "1.0"
+            }
+          ]
+        }
+      }
+    },
+    "controller.animation.doki_pillager.idle": {
+      "initial_state": "still_0",
+      "states": {
+        "still_0": {
+          "transitions": [
+            {
+              "idle_0": "q.any_animation_finished"
+            }
+          ],
+          "animations": [
+            {
+              "idle_timer": "q.ground_speed==0"
+            }
+          ]
+        },
+        "still_1": {
+          "transitions": [
+            {
+              "idle_1": "q.any_animation_finished"
+            }
+          ],
+          "animations": [
+            {
+              "idle_timer": "!query.is_moving"
+            }
+          ]
+        },
+        "idle_0": {
+          "transitions": [
+            {
+              "still_1": "q.any_animation_finished||q.ground_speed>0"
+            }
+          ],
+          "blend_transition": 0.3,
+          "animations": [
+            {
+              "idle_0": "!query.is_sitting&&!q.is_in_water"
+            }
+          ]
+        },
+        "idle_1": {
+          "transitions": [
+            {
+              "still_0": "q.any_animation_finished||q.is_moving"
+            }
+          ],
+          "blend_transition": 0.3,
+          "animations": [
+            {
+              "idle_1": "!query.is_sitting&&!q.is_in_water"
+            }
+          ]
+        }
+      }
+    },
+    "controller.animation.doki_pillager.arms": {
+      "initial_state": "down",
+      "states": {
+        "down": {
+          "transitions": [
+            {
+              "up": "q.is_attacking||q.has_target"
+            },
+            {
+              "quiet": "!q.is_in_water&&(q.is_moving||!q.is_on_ground)"
             }
           ],
           "animations": [
@@ -148,16 +278,26 @@
             }
           ]
         },
-        "aiming": {
+        "up": {
           "transitions": [
             {
-              "default": "!q.is_attacking&&!q.has_target"
+              "down": "!q.is_attacking&&!q.has_target"
+            },
+            {
+              "quiet": "!q.is_in_water&&(q.is_moving||!q.is_on_ground)"
             }
           ],
           "blend_transition": 0.15,
           "animations": [
             {
               "raise_arms": "1.0"
+            }
+          ]
+        },
+        "quiet": {
+          "transitions": [
+            {
+              "down": "q.is_in_water||(q.is_on_ground&&!q.is_moving)"
             }
           ]
         }

@@ -22,9 +22,8 @@
         "jump": "dokimobs.pillager.跳跃",
         "raise_arms": "dokimobs.pillager.待机（手臂）抬起",
         "arms_down": "dokimobs.pillager.待机（手臂）放下",
-        "movement": "controller.animation.mdsj_cow_movement",
-        "controller_jump": "controller.animation.mdsj_jump",
-        "idle_anim": "controller.animation.mdsj_entity.idle",
+        "movement": "controller.animation.doki_pillager.movement",
+        "idle_anim": "controller.animation.doki_pillager.idle",
         "controller_blink": "controller.animation.mdsj_blink",
         "arms_ctl": "controller.animation.doki_pillager.arms"
       },
@@ -38,9 +37,6 @@
               "1.0"
             ],
             "movement": [
-              "1.0"
-            ],
-            "controller_jump": [
               "1.0"
             ],
             "arms_ctl": [
