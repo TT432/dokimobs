@@ -128,3 +128,7 @@ repo/
 .metals/
 .cache/
 .AddCompLib/
+
+# 工作过程产物（截图、反馈等，不入库）
+work/
+%TEMP%jdk25.json
