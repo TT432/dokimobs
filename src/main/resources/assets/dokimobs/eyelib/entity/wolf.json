@@ -30,7 +30,7 @@
         "movement": "controller.animation.mdsj_sheep_anim.movement",
         "in_air": "controller.animation.mdsj_in_air",
         "land_ctl": "controller.animation.mdsj_quadruped_land",
-        "idle_anim": "controller.animation.mdsj_entity.idle",
+        "idle_anim": "controller.animation.doki_wolf.idle",
         "controller_blink": "controller.animation.mdsj_blink",
         "tail_ctl": "controller.animation.doki_wolf.tail",
         "attack_ctl": "controller.animation.doki_wolf.attack"

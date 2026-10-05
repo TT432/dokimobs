@@ -38,6 +38,7 @@ assets/dokimobs/eyelib/animation_controllers/doki.json 迁移+新建控制器
   注册表内剪辑统一为基岩剪辑空间，渲染期 flipAnimation=true（geo/bbmodel 模型均为 true）补偿一次
   即还原编辑器姿态。eyelib 9754bbea 曾改为"透传+渲染期补偿"，实机姿态镜像（守卫者三叉戟换手），
   21.1.16 已回退该错误并补 molang 表达式 `-(...)` 包裹取反。21.1.15 直载管线渲染的 bbmodel 动画均为镜像。
+- **"弩朝向偏 90°"根因：idle 控制器停播窗口（2026-10-05 修复，doki 侧）**：掠夺者待机拆为躯体+手臂两条剪辑，躯体剪辑内置恒定 +48.9°Y 躯干侧转（AllHead/Head -47° 补偿），手臂抬起/放下关键帧恰好抵消该侧转——两者必须同时播放弩管才朝正前（实测偏 0.6°）；只播手臂时弩管偏 50.4°（视角呈 90°）。旧 doki_pillager.idle 照抄 mdsj_entity.idle 的 still→idle 交替结构，still 态只播 idle_timer，躯体剪辑周期性停播数秒 → 停播窗口瞄准姿态塌缩。修复：idle 控制器改为两态（idle 持续播躯体+idle_timer，away 只播 idle_timer，转移条件互斥）。同类缺陷：狼/商人待机 allbody 内置 23° 侧转，同一结构同样修（狼修正后 23.75°、商人 23.0° 持续保持）。教训：① 对照截图复现时必须让目标进入与截图相同的控制器状态（still/idle 相位），"验证通过"若恰在播放期会漏掉空窗期缺陷；② 多剪辑组合姿态（躯体侧转+手臂抵消）对任一剪辑停播敏感，idle 控制器不得周期性中断这类剪辑。另：eyelib 21.1.17 曾据同一截图错误归因为"关键帧含 bind 需减 bind"并改 eyelib，引入弩臂塌缩+朝下的另一回归，21.1.18 已回退——归因前必须用渲染同源代码实测骨骼链，禁止凭单帧截图改渲染库。
 - **贴图上传键**：实体 json `textures.default = dokimobs:textures/entity/bbmodel/<entity>`
   （codec 自动补 .png），与 DokiBbModelLoader 的上传键一一对应。
 - **1.21.1 run/mods 版本残留**：copyEyelibToMods 是 additive copy，已加 doFirst 清理同 artifact 旧 jar。

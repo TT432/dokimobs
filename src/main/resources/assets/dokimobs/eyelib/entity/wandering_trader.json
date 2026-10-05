@@ -30,7 +30,7 @@
         "controller_jump": "controller.animation.mdsj_jump",
         "controller_land": "controller.animation.mdsj_land",
         "controller_fall": "controller.animation.mdsj_zombie.fall",
-        "idle_anim": "controller.animation.mdsj_entity.idle",
+        "idle_anim": "controller.animation.doki_wandering_trader.idle",
         "controller_blink": "controller.animation.mdsj_blink",
         "is_riding": "controller.animation.mdsj_villager.ride"
       },

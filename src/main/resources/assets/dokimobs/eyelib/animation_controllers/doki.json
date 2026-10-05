@@ -206,55 +206,99 @@
       }
     },
     "controller.animation.doki_pillager.idle": {
-      "initial_state": "still_0",
+      "initial_state": "idle",
       "states": {
-        "still_0": {
+        "idle": {
           "transitions": [
             {
-              "idle_0": "q.any_animation_finished"
-            }
-          ],
-          "animations": [
-            {
-              "idle_timer": "q.ground_speed==0"
-            }
-          ]
-        },
-        "still_1": {
-          "transitions": [
-            {
-              "idle_1": "q.any_animation_finished"
-            }
-          ],
-          "animations": [
-            {
-              "idle_timer": "!query.is_moving"
-            }
-          ]
-        },
-        "idle_0": {
-          "transitions": [
-            {
-              "still_1": "q.any_animation_finished||q.ground_speed>0"
+              "away": "q.is_moving||!q.is_on_ground||q.is_in_water"
             }
           ],
           "blend_transition": 0.3,
           "animations": [
             {
-              "idle_0": "!query.is_sitting&&!q.is_in_water"
+              "idle_0": "!query.is_sitting"
+            },
+            {
+              "idle_timer": "1.0"
             }
           ]
         },
-        "idle_1": {
+        "away": {
           "transitions": [
             {
-              "still_0": "q.any_animation_finished||q.is_moving"
+              "idle": "!q.is_moving&&q.is_on_ground&&!q.is_in_water"
+            }
+          ],
+          "animations": [
+            {
+              "idle_timer": "1.0"
+            }
+          ]
+        }
+      }
+    },
+    "controller.animation.doki_wolf.idle": {
+      "initial_state": "idle",
+      "states": {
+        "idle": {
+          "transitions": [
+            {
+              "away": "q.is_moving||!q.is_on_ground||q.is_in_water"
             }
           ],
           "blend_transition": 0.3,
           "animations": [
             {
-              "idle_1": "!query.is_sitting&&!q.is_in_water"
+              "idle_0": "!query.is_sitting"
+            },
+            {
+              "idle_timer": "1.0"
+            }
+          ]
+        },
+        "away": {
+          "transitions": [
+            {
+              "idle": "!q.is_moving&&q.is_on_ground&&!q.is_in_water"
+            }
+          ],
+          "animations": [
+            {
+              "idle_timer": "1.0"
+            }
+          ]
+        }
+      }
+    },
+    "controller.animation.doki_wandering_trader.idle": {
+      "initial_state": "idle",
+      "states": {
+        "idle": {
+          "transitions": [
+            {
+              "away": "q.is_moving||!q.is_on_ground||q.is_in_water"
+            }
+          ],
+          "blend_transition": 0.3,
+          "animations": [
+            {
+              "idle_0": "!query.is_sitting"
+            },
+            {
+              "idle_timer": "1.0"
+            }
+          ]
+        },
+        "away": {
+          "transitions": [
+            {
+              "idle": "!q.is_moving&&q.is_on_ground&&!q.is_in_water"
+            }
+          ],
+          "animations": [
+            {
+              "idle_timer": "1.0"
             }
           ]
         }
