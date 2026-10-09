@@ -28,3 +28,7 @@ rootProject.name = "dokimobs"
 // eyelib 是独立 stonecutter 项目（../qylEyelib），通过 maven local 提供 artifacts。
 // 不使用 includeBuild——stonecutter 多节点产生相同 group:name 导致 composite build 歧义。
 // 构建流程：先 gradlew -p ../qylEyelib :<version>:publishToMavenLocal，再构建本项目。
+// 注意：eyelib_version 升级后必须对全部三个版本（1.20.1/1.21.1/26.1.2）发布，
+// 且 eyelib 自身依赖 clientsmoke 子模块的 maven local 构件——需先
+// gradlew -p ../qylEyelib -p clientsmoke :<version>:publishToMavenLocal（clientsmoke 无独立 wrapper）。
+// 只发单个版本会导致其余版本项目配置期解析 eyelibJar/clientsmokeJar 失败（构建全部版本不可用）。
