@@ -61,6 +61,16 @@ assets/dokimobs/eyelib/animation_controllers/doki.json 迁移+新建控制器
 - **缺失引用安全降级**：控制器状态引用未映射的短名 → resolveAnimation 返回 null → 该状态视为播完，
   不崩溃不刷屏。
 
+- **variant 落盘必须显式同步（2026-10-09 实机定位）**：渲染期 `query.variant`/`query.mark_variant`
+  读的是 `SyncedBehaviorState`（EntityRenderOrchestrator.setupSyncedBehaviorContext），附件无自动同步，
+  村民职业/类型变化后必须写 SyncedBehaviorState 并 `syncTrackedAndSelf`（TempVariantSetting.syncVariantIfChanged）。
+  不这样做：首帧按默认 variant 解析贴图键并上传，次帧 variant 到位后键变化但 slot 已标记已上传，
+  旧 eyelib（≤21.1.20）不再入队 clamped 派生 → 职业服装永久紫黑。eyelib 21.1.21 侧同时修复
+  clamped 上传时机（见 eyelib docs/concepts/alpha-clamp-two-path.md「clamped 上传时机」），两层缺一不可。
+  另：注册表 key 比较用 `.getPath()`（`minecraft:plains` → `plains`），勿用 toString。
+- **狼/烈焰人控制器修正（2026-10-09）**：狼 movement 改用专属 `controller.animation.doki_wolf.movement`
+  （不再借用 mdsj_sheep），实体 scale 0.75；烈焰人移除头发 ambient 控制器改 `doki_blaze.spear`，scale 0.8。
+
 - **掠夺者躯体/手臂分层（2026-10-04 美术语义落地）**：行走/奔跑/跳跃是全身动画（含手臂骨骼），
   待机（躯体）/游泳（躯体）不碰手臂 → 移动时手臂控制器必须进 quiet 态（无动画）让位全身剪辑，
   静止或游泳时由手臂控制器播 放下/抬起。`q.has_target` 判别遇敌：奔跑=遇敌移动、抬起=遇敌静止。

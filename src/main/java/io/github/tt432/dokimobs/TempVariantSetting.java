@@ -1,6 +1,7 @@
 package io.github.tt432.dokimobs;
 
 import io.github.tt432.dokimobs.data.DokiData;
+import io.github.tt432.eyelib.behavior.SyncedBehaviorState;
 import io.github.tt432.dokimobs.data.EntityDokiData;
 import io.github.tt432.eyelib.behavior.EntityBehaviorData;
 import io.github.tt432.eyelib.behavior.component.Component;
@@ -8,6 +9,7 @@ import io.github.tt432.eyelib.behavior.component.MarkVariant;
 import io.github.tt432.eyelib.behavior.component.Variant;
 import io.github.tt432.eyelib.behavior.component.group.ComponentGroup;
 import io.github.tt432.eyelib.bridge.attachment.dataattach.mc.DataAttachmentHelper;
+import io.github.tt432.eyelib.bridge.attachment.network.adapter.DataAttachmentSyncRuntime;
 import io.github.tt432.eyelib.bridge.capability.EyelibAttachableData;
 import io.github.tt432.eyelib.capability.RenderData;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -130,9 +132,9 @@ public class TempVariantSetting {
                         default -> 0;
                     };
                     //? if !modern {
-                    int markVariantId = switch (BuiltInRegistries.VILLAGER_TYPE.getKey(villager.getVillagerData().getType()).toString()) {
+                    int markVariantId = switch (BuiltInRegistries.VILLAGER_TYPE.getKey(villager.getVillagerData().getType()).getPath()) {
                     //?} else {
-                    int markVariantId = switch (BuiltInRegistries.VILLAGER_TYPE.getKey(villager.getVillagerData().type().value()).toString()) {
+                    int markVariantId = switch (BuiltInRegistries.VILLAGER_TYPE.getKey(villager.getVillagerData().type().value()).getPath()) {
                     //?}
                         case "desert" -> 1;
                         case "jungle" -> 2;
@@ -142,9 +144,27 @@ public class TempVariantSetting {
                         case "taiga" -> 6;
                         default -> 0;
                     };
-                    variant((Entity) villager, new Variant(variantId), new MarkVariant(markVariantId));
+                    syncVariantIfChanged((Entity) villager, variantId, markVariantId);
                 }
             }
+        }
+
+        /**
+         * 村民变体落盘 + 同步。渲染期 query.variant/mark_variant 读 SyncedBehaviorState
+         * （EntityRenderOrchestrator.setupSyncedBehaviorContext），不是 EntityBehaviorData；
+         * 且附件无自动同步，职业/类型变化后必须显式 syncTrackedAndSelf——
+         * 旧实现两者皆错（皮肤不随职业切换的根因）。仅在值变化时写，避免逐 tick 分配与发包。
+         */
+        static void syncVariantIfChanged(Entity entity, int variantId, int markVariantId) {
+            var data = DataAttachmentHelper.getOrCreate(EyelibAttachableData.syncedBehaviorState(), entity);
+
+            if (data.variant() == variantId && data.markVariant() == markVariantId) {
+                return;
+            }
+
+            var newState = new SyncedBehaviorState(variantId, data.scale(), markVariantId);
+            DataAttachmentHelper.setLocal(EyelibAttachableData.syncedBehaviorState(), entity, newState);
+            DataAttachmentSyncRuntime.syncTrackedAndSelf(EyelibAttachableData.syncedBehaviorState(), entity, newState);
         }
 
         @SubscribeEvent

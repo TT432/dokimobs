@@ -20,14 +20,16 @@
         "move_back": "dokimobs.blaze.后退",
         "attack": "dokimobs.blaze.攻击A",
         "attack_state": "dokimobs.blaze.攻击状态",
-        "hair": "dokimobs.blaze.头发主动飘动备份-中等幅度",
         "parallel": "dokimobs.blaze.并行",
         "controller_blink": "controller.animation.mdsj_blink",
         "move_ctl": "controller.animation.doki_blaze.move",
         "attack_ctl": "controller.animation.doki_blaze.attack",
-        "ambient_ctl": "controller.animation.doki_blaze.ambient"
+        "spear_ctl": "controller.animation.doki_blaze.spear"
       },
       "scripts": {
+        "scale": [
+          "0.8;"
+        ],
         "animate": [
           {
             "controller_blink": [
@@ -39,7 +41,7 @@
             "attack_ctl": [
               "1.0"
             ],
-            "ambient_ctl": [
+            "spear_ctl": [
               "1.0"
             ]
           }

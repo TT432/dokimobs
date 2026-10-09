@@ -96,13 +96,94 @@
         }
       }
     },
+    "controller.animation.doki_wolf.movement": {
+      "initial_state": "walk",
+      "states": {
+        "walk": {
+          "transitions": [
+            {
+              "run": "q.modified_move_speed>0.6"
+            },
+            {
+              "float": "q.is_in_water"
+            },
+            {
+              "air": "!q.is_on_ground&&!q.is_in_water"
+            }
+          ],
+          "blend_transition": 0.12,
+          "animations": [
+            {
+              "walk": "q.modified_move_speed*1.6"
+            }
+          ]
+        },
+        "run": {
+          "transitions": [
+            {
+              "walk": "q.modified_move_speed<0.3&&q.any_animation_finished"
+            },
+            {
+              "float": "q.is_in_water"
+            },
+            {
+              "air": "!q.is_on_ground&&!q.is_in_water"
+            }
+          ],
+          "blend_transition": 0.18,
+          "animations": [
+            {
+              "run": "q.modified_move_speed*1.6"
+            }
+          ]
+        },
+        "float": {
+          "transitions": [
+            {
+              "walk": "!q.is_in_water&&q.is_on_ground"
+            }
+          ],
+          "blend_transition": 0.24,
+          "animations": [
+            {
+              "swim": "q.is_moving",
+              "swim_idle": "!q.is_moving"
+            }
+          ]
+        },
+        "air": {
+          "transitions": [
+            {
+              "walk": "q.is_on_ground&&!q.is_in_water"
+            },
+            {
+              "float": "q.is_in_water"
+            }
+          ],
+          "blend_transition": 0.2
+        }
+      }
+    },
+    "controller.animation.doki_blaze.spear": {
+      "initial_state": "default",
+      "states": {
+        "default": {
+          "animations": [
+            {
+              "idle_state": "!q.has_target",
+              "attack_state": "q.has_target"
+            }
+          ]
+        }
+      }
+    },
     "controller.animation.doki_wolf.tail": {
       "initial_state": "default",
       "states": {
         "default": {
           "animations": [
             {
-              "tail": "!q.is_sleeping"
+              "tail": "!q.is_sleeping&&!q.is_moving&&q.is_on_ground&&!q.is_in_water"
             }
           ]
         }
@@ -380,18 +461,6 @@
           "animations": [
             {
               "attack": "1.0"
-            }
-          ]
-        }
-      }
-    },
-    "controller.animation.doki_blaze.ambient": {
-      "initial_state": "default",
-      "states": {
-        "default": {
-          "animations": [
-            {
-              "hair": "1.0"
             }
           ]
         }

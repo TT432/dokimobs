@@ -27,7 +27,7 @@
         "tail": "dokimobs.wolf.尾巴",
         "attack": "dokimobs.wolf.攻击A",
         "shake": "dokimobs.wolf.抖水",
-        "movement": "controller.animation.mdsj_sheep_anim.movement",
+        "movement": "controller.animation.doki_wolf.movement",
         "in_air": "controller.animation.mdsj_in_air",
         "land_ctl": "controller.animation.mdsj_quadruped_land",
         "idle_anim": "controller.animation.doki_wolf.idle",
@@ -36,6 +36,9 @@
         "attack_ctl": "controller.animation.doki_wolf.attack"
       },
       "scripts": {
+        "scale": [
+          "0.75;"
+        ],
         "animate": [
           {
             "controller_blink": [
