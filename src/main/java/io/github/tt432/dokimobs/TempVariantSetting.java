@@ -61,11 +61,42 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * @author TT432
  */
 public class TempVariantSetting {
+    /**
+     * dokimobs 注册了 eyelib 模型替换的实体 identifier（assets/dokimobs/eyelib/entity/ 下 5 种）。
+     */
+    private static final Set<String> BUILT_IN_MANAGED = Set.of(
+            "minecraft:blaze",
+            "minecraft:wolf",
+            "minecraft:wandering_trader",
+            "minecraft:pillager",
+            "minecraft:guardian");
+
+    /**
+     * cospack 动态注册到 eyelib ClientEntityManager 的实体 identifier，
+     * 由 {@link CosPackLoader} 在资源重载时整体重建。
+     */
+    private static volatile Set<String> cosPackManaged = Set.of();
+
+    public static void setCosPackManagedIdentifiers(Set<String> identifiers) {
+        cosPackManaged = Set.copyOf(identifiers);
+    }
+
+    /**
+     * doki 值是 dokimobs 受管实体的逐实例替换短路开关（false → 强制原版渲染）。
+     * 仅受管类型允许写 eyelib 的 useBuiltInRenderSystem：该开关默认 true 且无人复位，
+     * 对未受管实体写入 false 会永久旁路其他 eyelib mod 注册的模型替换。
+     */
+    static boolean isDokiManaged(Entity entity) {
+        String key = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
+        return BUILT_IN_MANAGED.contains(key) || cosPackManaged.contains(key);
+    }
+
     //? if legacy {
     @Mod.EventBusSubscriber
     //?} else {
@@ -237,6 +268,8 @@ public class TempVariantSetting {
         //? if !modern {
         public static void onEvent(RenderLivingEvent.Pre<?, ?> event) {
             Entity entity = event.getEntity();
+            if (!isDokiManaged(entity)) return;
+
             EntityDokiData dokiData = DataAttachmentHelper.getOrCreate(DokiData.DOKI.get(), entity);
             // 每帧双向设置：doki 同步晚于首帧渲染时，避免 false 粘性导致永久原版渲染
             RenderData.getComponent(entity).setUseBuiltInRenderSystem(dokiData.doki());
@@ -247,6 +280,7 @@ public class TempVariantSetting {
             var state = event.getRenderState();
             LivingEntity entity = findEntityByRenderState(state.entityType, state.x, state.y, state.z, event.getPartialTick());
             if (entity == null) return;
+            if (!isDokiManaged(entity)) return;
 
             EntityDokiData dokiData = DataAttachmentHelper.getOrCreate(DokiData.DOKI.get(), entity);
             // 每帧双向设置：doki 同步晚于首帧渲染时，避免 false 粘性导致永久原版渲染

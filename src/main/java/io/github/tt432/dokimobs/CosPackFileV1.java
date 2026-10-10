@@ -43,6 +43,12 @@ public record CosPackFileV1(
             FileEntry.CODEC.listOf().fieldOf("entries").forGetter(CosPackFileV1::entries)
     ).apply(ins, CosPackFileV1::new));
 
+    @Override
+    public Collection<String> identifiers() {
+        // 与 FileEntry.onLoad 写入 ClientEntityManager 的 key 保持一致
+        return entries.stream().map(e -> e.entity().identifier()).toList();
+    }
+
     /**
      * 提取 PNG 编码字节。26.1 移除了 {@code NativeImage#asByteArray()}（仅剩 writeToFile），
      * 经临时文件换取等价字节。

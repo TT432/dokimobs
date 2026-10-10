@@ -30,7 +30,9 @@ import net.minecraft.resources.Identifier;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * @author TT432
@@ -69,10 +71,14 @@ public class CosPackLoader extends SimpleJsonWithSuffixResourceReloadListener {
     protected void applyJson(Map<String, JsonElement> source, @NotNull ResourceManager resourceManager, @NotNull ProfilerFiller profiler) {
         files.clear();
 
+        Set<String> managedIdentifiers = new HashSet<>();
         source.forEach((k, v) -> {
             CosPackFile file = CosPackFileManager.load(v.getAsJsonObject());
             file.onLoad();
             files.put(k, file);
+            managedIdentifiers.addAll(file.identifiers());
         });
+        // reload 时整体重建，随 files.clear() 同步丢弃已移除包的 identifier
+        TempVariantSetting.setCosPackManagedIdentifiers(managedIdentifiers);
     }
 }
