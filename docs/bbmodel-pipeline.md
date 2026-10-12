@@ -58,6 +58,14 @@ assets/dokimobs/eyelib/animation_controllers/doki.json 迁移+新建控制器
 - **贴图上传键**：实体 json `textures.default = dokimobs:textures/entity/bbmodel/<entity>`
   （codec 自动补 .png），与 DokiBbModelLoader 的上传键一一对应。
 - **1.21.1 run/mods 版本残留**：copyEyelibToMods 是 additive copy，已加 doFirst 清理同 artifact 旧 jar。
+- **动画幅值异常翻倍先查双驱动（2026-10-12 村民睡姿根因）**：`scripts.animate` 里控制器条目与
+  直接动画条目若引用**同一动画**（经 `animations` 短名表解析后同 id），eyelib
+  `BrAnimationEntry.tickAnimation` 对骨骼 rotation/position 是 `add` 累加，两条路径每帧各加一次
+  → 恒定 2× 幅值（叠加基岩→MC 转换 `mul(-1,-1,1)`，表现为「观测=-2×写入」）。实例：村民
+  `base_general` 控制器 `get_in_bed` 状态播 `sleep`，animate 列表又直挂 `{"sleep":["query.is_sleeping"]}`，
+  睡姿双倍过转。修复走数据侧（删直接条目、恢复原始剪辑值），不是 eyelib 管线 bug。
+  排查法：枚举 entity description 的 `scripts.animate` 直接条目 ∩ 各控制器状态 animations，
+  交集非空即双驱动。
 - **缺失引用安全降级**：控制器状态引用未映射的短名 → resolveAnimation 返回 null → 该状态视为播完，
   不崩溃不刷屏。
 
