@@ -85,6 +85,11 @@
       "initial_state": "default",
       "states": {
         "default": {
+          "transitions": [
+            {
+              "air": "!q.is_on_ground&&!q.is_in_water"
+            }
+          ],
           "animations": [
             {
               "idle": "!q.is_in_water&&!q.is_moving",
@@ -93,16 +98,67 @@
               "swim": "q.is_in_water&&q.is_moving"
             }
           ]
+        },
+        "air": {
+          "transitions": [
+            {
+              "default": "q.is_on_ground||q.is_in_water"
+            }
+          ],
+          "blend_transition": 0.15,
+          "animations": [
+            {
+              "jump": "1.0"
+            }
+          ]
         }
       }
     },
     "controller.animation.doki_wolf.movement": {
-      "initial_state": "walk",
+      "initial_state": "idle",
       "states": {
+        "idle": {
+          "transitions": [
+            {
+              "sit": "q.sit_amount>0"
+            },
+            {
+              "walk": "q.is_moving"
+            },
+            {
+              "float": "q.is_in_water"
+            },
+            {
+              "air": "!q.is_on_ground&&!q.is_in_water"
+            }
+          ],
+          "blend_transition": 0.2,
+          "animations": [
+            {
+              "idle_0": "1.0"
+            }
+          ]
+        },
+        "sit": {
+          "transitions": [
+            {
+              "idle": "q.sit_amount<=0"
+            }
+          ],
+          "blend_transition": 0.2,
+          "animations": [
+            {
+              "sit": "1.0"
+            }
+          ]
+        },
         "walk": {
           "transitions": [
             {
               "run": "q.modified_move_speed>0.6"
+            },
+            {
+              "idle": "!q.is_moving"
             },
             {
               "float": "q.is_in_water"
@@ -114,7 +170,7 @@
           "blend_transition": 0.12,
           "animations": [
             {
-              "walk": "q.modified_move_speed*1.6"
+              "walk": "1.0"
             }
           ]
         },
@@ -122,6 +178,9 @@
           "transitions": [
             {
               "walk": "q.modified_move_speed<0.3&&q.any_animation_finished"
+            },
+            {
+              "idle": "!q.is_moving"
             },
             {
               "float": "q.is_in_water"
@@ -133,14 +192,17 @@
           "blend_transition": 0.18,
           "animations": [
             {
-              "run": "q.modified_move_speed*1.6"
+              "run": "1.0"
             }
           ]
         },
         "float": {
           "transitions": [
             {
-              "walk": "!q.is_in_water&&q.is_on_ground"
+              "idle": "!q.is_in_water&&q.is_on_ground&&!q.is_moving"
+            },
+            {
+              "walk": "!q.is_in_water&&q.is_on_ground&&q.is_moving"
             }
           ],
           "blend_transition": 0.24,
@@ -154,13 +216,22 @@
         "air": {
           "transitions": [
             {
-              "walk": "q.is_on_ground&&!q.is_in_water"
+              "idle": "q.is_on_ground&&!q.is_in_water&&!q.is_moving"
+            },
+            {
+              "walk": "q.is_on_ground&&!q.is_in_water&&q.is_moving"
             },
             {
               "float": "q.is_in_water"
             }
           ],
-          "blend_transition": 0.2
+          "blend_transition": 0.2,
+          "animations": [
+            {
+              "jump": "q.vertical_speed>0",
+              "fall": "q.vertical_speed<=0"
+            }
+          ]
         }
       }
     },
@@ -215,12 +286,34 @@
       }
     },
     "controller.animation.doki_pillager.movement": {
-      "initial_state": "walk",
+      "initial_state": "idle",
       "states": {
+        "idle": {
+          "transitions": [
+            {
+              "walk": "q.is_moving"
+            },
+            {
+              "float": "q.is_in_water"
+            },
+            {
+              "air": "!q.is_on_ground&&!q.is_in_water"
+            }
+          ],
+          "blend_transition": 0.2,
+          "animations": [
+            {
+              "idle_0": "!query.is_sitting"
+            }
+          ]
+        },
         "walk": {
           "transitions": [
             {
               "run": "q.has_target&&q.is_moving"
+            },
+            {
+              "idle": "!q.is_moving"
             },
             {
               "float": "q.is_in_water"
@@ -232,7 +325,7 @@
           "blend_transition": 0.12,
           "animations": [
             {
-              "walk": "q.modified_move_speed*1.6"
+              "walk": "1.0"
             }
           ]
         },
@@ -242,6 +335,9 @@
               "walk": "!q.has_target"
             },
             {
+              "idle": "!q.is_moving"
+            },
+            {
               "float": "q.is_in_water"
             },
             {
@@ -251,14 +347,17 @@
           "blend_transition": 0.12,
           "animations": [
             {
-              "run": "q.modified_move_speed*1.36"
+              "run": "1.0"
             }
           ]
         },
         "float": {
           "transitions": [
             {
-              "walk": "!q.is_in_water&&q.is_on_ground"
+              "idle": "!q.is_in_water&&q.is_on_ground&&!q.is_moving"
+            },
+            {
+              "walk": "!q.is_in_water&&q.is_on_ground&&q.is_moving"
             }
           ],
           "blend_transition": 0.24,
@@ -271,7 +370,10 @@
         "air": {
           "transitions": [
             {
-              "walk": "q.is_on_ground&&!q.is_in_water"
+              "idle": "q.is_on_ground&&!q.is_in_water&&!q.is_moving"
+            },
+            {
+              "walk": "q.is_on_ground&&!q.is_in_water&&q.is_moving"
             },
             {
               "float": "q.is_in_water"
@@ -281,72 +383,6 @@
           "animations": [
             {
               "jump": "1.0"
-            }
-          ]
-        }
-      }
-    },
-    "controller.animation.doki_pillager.idle": {
-      "initial_state": "idle",
-      "states": {
-        "idle": {
-          "transitions": [
-            {
-              "away": "q.is_moving||!q.is_on_ground||q.is_in_water"
-            }
-          ],
-          "blend_transition": 0.3,
-          "animations": [
-            {
-              "idle_0": "!query.is_sitting"
-            },
-            {
-              "idle_timer": "1.0"
-            }
-          ]
-        },
-        "away": {
-          "transitions": [
-            {
-              "idle": "!q.is_moving&&q.is_on_ground&&!q.is_in_water"
-            }
-          ],
-          "animations": [
-            {
-              "idle_timer": "1.0"
-            }
-          ]
-        }
-      }
-    },
-    "controller.animation.doki_wolf.idle": {
-      "initial_state": "idle",
-      "states": {
-        "idle": {
-          "transitions": [
-            {
-              "away": "q.is_moving||!q.is_on_ground||q.is_in_water"
-            }
-          ],
-          "blend_transition": 0.3,
-          "animations": [
-            {
-              "idle_0": "!query.is_sitting"
-            },
-            {
-              "idle_timer": "1.0"
-            }
-          ]
-        },
-        "away": {
-          "transitions": [
-            {
-              "idle": "!q.is_moving&&q.is_on_ground&&!q.is_in_water"
-            }
-          ],
-          "animations": [
-            {
-              "idle_timer": "1.0"
             }
           ]
         }

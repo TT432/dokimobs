@@ -3,11 +3,6 @@ package io.github.tt432.dokimobs;
 import io.github.tt432.dokimobs.data.DokiData;
 import io.github.tt432.eyelib.behavior.SyncedBehaviorState;
 import io.github.tt432.dokimobs.data.EntityDokiData;
-import io.github.tt432.eyelib.behavior.EntityBehaviorData;
-import io.github.tt432.eyelib.behavior.component.Component;
-import io.github.tt432.eyelib.behavior.component.MarkVariant;
-import io.github.tt432.eyelib.behavior.component.Variant;
-import io.github.tt432.eyelib.behavior.component.group.ComponentGroup;
 import io.github.tt432.eyelib.bridge.attachment.dataattach.mc.DataAttachmentHelper;
 import io.github.tt432.eyelib.bridge.attachment.network.adapter.DataAttachmentSyncRuntime;
 import io.github.tt432.eyelib.bridge.capability.EyelibAttachableData;
@@ -57,10 +52,6 @@ import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 //?}
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -103,34 +94,6 @@ public class TempVariantSetting {
     @EventBusSubscriber
     //?}
     public static final class CommonEvents {
-        static void variant(Entity entity, Variant variant) {
-            var data = DataAttachmentHelper.getOrCreate(EyelibAttachableData.entityBehaviorData(), entity);
-            List<ComponentGroup> componentGroups = data.getComponentGroups();
-
-            if (componentGroups.isEmpty()) {
-                Map<String, Component> components = new HashMap<>();
-                components.put("variant", variant);
-                componentGroups.add(new ComponentGroup(components));
-            }
-
-            data.setup();
-
-            DataAttachmentHelper.setLocal(EyelibAttachableData.entityBehaviorData(), entity, data);
-        }
-
-        static void variant(Entity entity, Variant variant, MarkVariant markVariant) {
-            var data = DataAttachmentHelper.getOrCreate(EyelibAttachableData.entityBehaviorData(), entity);
-
-            Map<String, Component> components = new HashMap<>();
-            components.put("variant", variant);
-            components.put("mark_variant", markVariant);
-            List<ComponentGroup> componentGroups = new ArrayList<>();
-            componentGroups.add(new ComponentGroup(components));
-
-            DataAttachmentHelper.setLocal(EyelibAttachableData.entityBehaviorData(), entity,
-                    new EntityBehaviorData(data.getBehavior(), componentGroups));
-        }
-
         @SubscribeEvent
         //? if legacy {
         public static void onEvent(LivingEvent.LivingTickEvent event) {
@@ -198,30 +161,44 @@ public class TempVariantSetting {
             DataAttachmentSyncRuntime.syncTrackedAndSelf(EyelibAttachableData.syncedBehaviorState(), entity, newState);
         }
 
+        /**
+         * 随机/原版变体落盘 + 同步。渲染期 query.variant/mark_variant 读 SyncedBehaviorState
+         * （EntityRenderOrchestrator.setupSyncedBehaviorContext），不是 EntityBehaviorData；
+         * 且附件无自动同步——旧实现只写服务端 EntityBehaviorData，客户端永远读到 0
+         * （鸡换色消失、僵尸/羊驼/狐狸变体失效的根因，2026-10-12 实机 dump 实证）。
+         */
+        static void syncVariant(Entity entity, int variantId, int markVariantId) {
+            var data = DataAttachmentHelper.getOrCreate(EyelibAttachableData.syncedBehaviorState(), entity);
+
+            var newState = new SyncedBehaviorState(variantId, data.scale(), markVariantId);
+            DataAttachmentHelper.setLocal(EyelibAttachableData.syncedBehaviorState(), entity, newState);
+            DataAttachmentSyncRuntime.syncTrackedAndSelf(EyelibAttachableData.syncedBehaviorState(), entity, newState);
+        }
+
         @SubscribeEvent
         public static void onEvent(EntityJoinLevelEvent event) {
             if (!event.getLevel().isClientSide()) {
                 Entity entity = event.getEntity();
 
                 if (entity instanceof Zombie z) {
-                    variant(z, new Variant(z.getRandom().nextInt(3)));
+                    syncVariant(z, z.getRandom().nextInt(3), 0);
                 } else if (entity instanceof Llama llama) {
-                    variant(llama, new Variant(llama.getVariant().getId()), new MarkVariant(llama instanceof TraderLlama ? 1 : 0));
+                    syncVariant(llama, llama.getVariant().getId(), llama instanceof TraderLlama ? 1 : 0);
                 } else if (entity instanceof Fox fox) {
                     //? if !modern {
                     if (fox.getVariant() == Fox.Type.SNOW) {
                     //?} else {
                     if (fox.getVariant() == Fox.Variant.SNOW) {
                     //?}
-                        variant(fox, new Variant(switch (weightedRandom(fox.getRandom(), new int[]{5, 1, 1, 1})) {
+                        syncVariant(fox, switch (weightedRandom(fox.getRandom(), new int[]{5, 1, 1, 1})) {
                             case 0 -> 1;
                             case 1 -> 9;
                             case 2 -> 10;
                             case 3 -> 11;
                             default -> -1;
-                        }));
+                        }, 0);
                     } else {
-                        variant(fox, new Variant(switch (weightedRandom(fox.getRandom(), new int[]{5, 1, 1, 1, 1, 1, 1, 1})) {
+                        syncVariant(fox, switch (weightedRandom(fox.getRandom(), new int[]{5, 1, 1, 1, 1, 1, 1, 1})) {
                             case 0 -> 0;
                             case 1 -> 6;
                             case 2 -> 2;
@@ -231,10 +208,10 @@ public class TempVariantSetting {
                             case 6 -> 8;
                             case 7 -> 7;
                             default -> -1;
-                        }));
+                        }, 0);
                     }
                 } else if (entity instanceof Chicken chicken) {
-                    variant(chicken, new Variant(chicken.getRandom().nextInt(3)));
+                    syncVariant(chicken, chicken.getRandom().nextInt(3), 0);
                 } else if (entity instanceof Villager) {
                     // handled by tick event above
                 }

@@ -1,0 +1,13 @@
+{
+  "buttons": [
+    { "name": "构建全部版本", "command": "cmd.exe /c gradlew.bat build --no-daemon" },
+    { "name": "发布到本地仓库", "command": "cmd.exe /c gradlew.bat publish --no-daemon" },
+    { "name": "运行测试", "command": "cmd.exe /c gradlew.bat test --no-daemon" }
+  ],
+  "artifacts": [
+    "versions/1.20.1/build/libs",
+    "versions/1.21.1/build/libs",
+    "versions/26.1.2/build/libs",
+    "repo"
+  ]
+}
