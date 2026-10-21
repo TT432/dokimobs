@@ -104,7 +104,10 @@ animation controller。已用脚本对照 HEAD 逐项确认 `models`/`animation.
 - **监守者片片从背后消失/面剔除黑（#18/#20）**：基础 RC 用 `Material.default`（`warden:entity`，无
   DisableCulling）。给实体 materials 增加 `nocull: entity_nocull`，`controller.render.warden` 对
   `patch` 骨骼使用 `Material.nocull`。实机正/背视角 `patch` 上的片状几何均可见。
-  剩余“部分不发光”受限于材料表没有「nocull + USE_EMISSIVE」组合；不在允许修改范围内新增 material 文件。
+  新增 `assets/dokimobs/eyelib/materials/doki.material`：`doki_warden_glow_nocull:warden_bioluminescent_layer`
+  （继承 `USE_EMISSIVE`/Blending，`+states: [DisableCulling]`）。实体 materials 增加 `glow_nocull`，
+  全部 warden overlay RC（bioluminescent/spots/tendrils/heart）改用该材质；实机 `ModelComponent`
+  renderType 解析为 `PortRenderPass[TRANSLUCENT_EMISSIVE, cull=false]`。
 - **监守者斑点 alpha 负值**：`0.25*cos(...)` 在 180° 相位产生负 alpha（第二组斑点不可见/发黑）。
   改为 `0.25*(0.5+0.5*cos(...))`，两组交替 0~0.25，始终非负。
 - **掠夺者回正抽搐（#21）**：`arms` 控制器 `down`/`up` 的转移把 `up`/`down` 排在 `quiet` 之前，

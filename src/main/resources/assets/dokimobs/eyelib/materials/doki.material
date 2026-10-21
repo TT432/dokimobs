@@ -1,0 +1,7 @@
+{
+  "materials": {
+    "doki_warden_glow_nocull:warden_bioluminescent_layer": {
+      "+states": ["DisableCulling"]
+    }
+  }
+}
