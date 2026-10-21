@@ -427,10 +427,10 @@
         "down": {
           "transitions": [
             {
-              "up": "q.is_attacking||q.has_target"
+              "quiet": "!q.is_in_water&&(q.is_moving||!q.is_on_ground)"
             },
             {
-              "quiet": "!q.is_in_water&&(q.is_moving||!q.is_on_ground)"
+              "up": "q.is_attacking||q.has_target"
             }
           ],
           "animations": [
@@ -442,10 +442,10 @@
         "up": {
           "transitions": [
             {
-              "down": "!q.is_attacking&&!q.has_target"
+              "quiet": "!q.is_in_water&&(q.is_moving||!q.is_on_ground)"
             },
             {
-              "quiet": "!q.is_in_water&&(q.is_moving||!q.is_on_ground)"
+              "down": "!q.is_attacking&&!q.has_target"
             }
           ],
           "blend_transition": 0.15,
@@ -457,6 +457,9 @@
         },
         "quiet": {
           "transitions": [
+            {
+              "up": "!q.is_in_water&&q.is_on_ground&&!q.is_moving&&(q.is_attacking||q.has_target)"
+            },
             {
               "down": "q.is_in_water||(q.is_on_ground&&!q.is_moving)"
             }

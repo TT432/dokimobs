@@ -5,7 +5,7 @@ import io.github.tt432.eyelib.behavior.SyncedBehaviorState;
 import io.github.tt432.dokimobs.data.EntityDokiData;
 import io.github.tt432.eyelib.bridge.attachment.dataattach.mc.DataAttachmentHelper;
 import io.github.tt432.eyelib.bridge.attachment.network.adapter.DataAttachmentSyncRuntime;
-import io.github.tt432.eyelib.bridge.capability.EyelibAttachableData;
+import io.github.tt432.eyelib.bridge.capability.adapter.EyelibAttachableData;
 import io.github.tt432.eyelib.capability.RenderData;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.util.RandomSource;

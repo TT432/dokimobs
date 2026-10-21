@@ -89,3 +89,32 @@ assets/dokimobs/eyelib/animation_controllers/doki.json 迁移+新建控制器
   （air/float/quiet 等），比追相机截图可靠。注意 eval 的 /eval HTTP 端点 body 是纯文本 Java，
   不是 JSON。测试移动动画别用 navigation.moveTo——会被 RandomStrollGoal 抢导航；
   用 setDeltaMovement 冲量让实体滑行（速度属性 0.35 的掠夺者自然移动极快，追拍极易失败）。
+
+## 2026-10-21 飞书反馈（#2/#12/#14/#18/#19/#20/#21）
+
+**约束**：不改模型（models/贴图）与动画剪辑（`animation.*`）；只改 client entity、render controller、
+animation controller。已用脚本对照 HEAD 逐项确认 `models`/`animation.*`/`textures` 无变化。
+
+- **监守者光波/触须不播（#18/#20）**：`pre_animation` 用 `query.time_since_last_vibration_detection`
+  驱动 `variable.tendril_animation`，但该查询依赖服务端 Brain 的 `VIBRATION_COOLDOWN` 记忆，客户端
+  恒得 2.0 → tendril=0，shiver 永不进入。改为 dokimobs 侧新查询 `query.doki_warden_anger`
+  （`DokiMolangQueries`，读客户端同步的 `Warden.getClientAngerLevel()`），
+  `variable.vibration_phase = 1 - min(anger/150, 1)`。实机：anger=150 时 `tendril_animation=1`、
+  `controller.animation.mdsj_warden.default → shiver`、`leftj/rightj` 旋转 ±0.10 rad。
+- **监守者片片从背后消失/面剔除黑（#18/#20）**：基础 RC 用 `Material.default`（`warden:entity`，无
+  DisableCulling）。给实体 materials 增加 `nocull: entity_nocull`，`controller.render.warden` 对
+  `patch` 骨骼使用 `Material.nocull`。实机正/背视角 `patch` 上的片状几何均可见。
+  剩余“部分不发光”受限于材料表没有「nocull + USE_EMISSIVE」组合；不在允许修改范围内新增 material 文件。
+- **监守者斑点 alpha 负值**：`0.25*cos(...)` 在 180° 相位产生负 alpha（第二组斑点不可见/发黑）。
+  改为 `0.25*(0.5+0.5*cos(...))`，两组交替 0~0.25，始终非负。
+- **掠夺者回正抽搐（#21）**：`arms` 控制器 `down`/`up` 的转移把 `up`/`down` 排在 `quiet` 之前，
+  移动开始/停止时先闪一帧目标态再进 quiet。改为所有状态优先 `quiet`，`quiet` 停止时按是否有目标
+  直接进 `up`（遇敌）或 `down`（无目标）。实机 tick 日志：停止时 `quiet → up` 直达，无 `down` 中间帧。
+- **村民傻子走路腿穿模（#2）**：`mdsj_villager_anim.move` 的 `move`/`move_arm` 权重对
+  `query.variant==14`（傻子）降为 0.6（逃跑 0.75），减少腿摆幅；其他职业不变。
+- **已验证无需改动**：#12 溺尸鱼骨（`fish`/`fish2` 每帧位置/旋转变化）、#14 蜘蛛 walk
+  （`modified_distance_moved` 驱动 `anim_time_update`，腿骨位置随距离循环）、#19 羊跳跃
+  （`controller.animation.mdsj_quadruped_up.up_0` 进入，`leg0/leg1` 位置从 0 → -0.24 方块）、
+  #2 村民职业换装（服务端改 profession 后客户端 `query.variant` 从 14 → 1）。
+
+**Molang 检查器**：见 [molang-checker.md](molang-checker.md)。本次全量扫描 678 条表达式 0 错误。

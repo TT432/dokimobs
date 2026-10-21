@@ -317,6 +317,28 @@ tasks.matching { it.name == 'createMinecraftArtifacts' }.configureEach {
     dependsOn tasks.matching { it.name == 'stonecutterGenerate' }
 }
 
+// Molang 快速检查器：复用 eyelib 的解析/绑定器 + 运行时映射表。
+// 使用 compileClasspath（含 compileOnly 的 eyelib/MC），而不是 runtimeClasspath。
+def molangCheckClasspath = files(sourceSets.main.output, configurations.compileClasspath)
+
+tasks.register('molangCheck', JavaExec) {
+    group = 'verification'
+    description = 'Scan dokimobs assets for Molang syntax errors and unknown query/math functions.'
+    dependsOn 'classes'
+    classpath = molangCheckClasspath
+    mainClass = 'io.github.tt432.dokimobs.molangcheck.MolangCheck'
+    args = [findProperty('molangTarget') ?: 'src/main/resources/assets/dokimobs']
+}
+
+tasks.register('molangCheckExpr', JavaExec) {
+    group = 'verification'
+    description = 'Check one Molang expression (-PmolangExpr="query.is_moving").'
+    dependsOn 'classes'
+    classpath = molangCheckClasspath
+    mainClass = 'io.github.tt432.dokimobs.molangcheck.MolangCheck'
+    args = ['--expr', findProperty('molangExpr') ?: 'query.is_moving']
+}
+
 publishing {
     publications {
         mavenJava(MavenPublication) {
