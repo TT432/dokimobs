@@ -154,6 +154,13 @@ animation controller。已用脚本对照 HEAD 逐项确认 `models`/`animation.
 而资产修改在本轮约束（不允许改 model & animation）之外。特效骨骼（groundwave/wind/light/chain/ghost）
 在基础通道确为纯黑不可见，可另行确认是否需要 `part_visibility`，但它不是本次反馈的黑色来源。
 
+**#2 傻子村民用工作方块不换皮肤（10-25 被测试者改回「未修复」）**：属原版机制而非同步缺陷。
+`VillagerProfession.NITWIT` 注册时 workstation 与 secondary job site 都是 `PoiType.NONE`
+（1.21.1 反编译 `VillagerProfession.java:51`），傻子永远匹配不到工作方块；实测把傻子放在堆肥桶旁 12 秒
+职业仍为 `nitwit`。而皮肤跟随职业的同步链路本身正常：服务端 `setVillagerData(... LIBRARIAN)`
+后客户端贴图立即变化（farmer→librarian 同样正常，见 `TempVariantSetting.syncVariantIfChanged`）。
+若要让傻子也能就职换皮肤，必须打破原版规则，属玩法改动（需求层），不能当 bug 修。
+
 **打包与产物（GRADLE）**
 
 - `stonecutter.gradle` 新增根项目任务：
