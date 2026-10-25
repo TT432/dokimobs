@@ -121,6 +121,7 @@ runs/
 # stonecutter / build runtime
 logs/
 repo/
+artifacts/
 
 # local tooling
 .vscode/

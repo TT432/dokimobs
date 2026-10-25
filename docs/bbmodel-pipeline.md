@@ -121,3 +121,53 @@ animation controller。已用脚本对照 HEAD 逐项确认 `models`/`animation.
   #2 村民职业换装（服务端改 profession 后客户端 `query.variant` 从 14 → 1）。
 
 **Molang 检查器**：见 [molang-checker.md](molang-checker.md)。本次全量扫描 678 条表达式 0 错误。
+
+## 2026-10-25 飞书复检（#12/#14/#15/#17/#19/#20 状态回退为「未修复」）
+
+**约束（用户本轮明确）**：不允许修改 model 与 animation（`models`/`animation.*`/贴图/`bbmodels`）。
+本轮只做控制器/材质/Java/构建侧改动，且最终产物为三个 MC 版本的 jar 汇总。
+
+**复现结论（HEAD 构建，三版本探针）**
+
+| 项 | 现象 | 复测结果 | 证据 |
+|---|---|---|---|
+| #12 溺尸鱼 | 鱼不动 | **未复现** | `fish`/`fish2` 骨骼旋转/位置逐帧变化；鱼身区域像素 diff 2~9（天空对照 0.0） |
+| #14 蜘蛛走路 | 平移不摆腿 | **未复现** | 静止时 `anim_time` 冻结、腿骨保持；移动时 8 条腿位置随位移循环（1.20.1/1.21.1/26.1.2 一致） |
+| #15 村民睡觉 | 无睡觉动画 | **未复现** | `startSleeping` 后 `base` 控制器进 `get_in_bed`，`waist` rot.x=1.571、`leg` rot.x=-1.571、`waist` pos.y=-0.5（平躺） |
+| #15 村民换装 | 职业不换装 | **未复现** | `/data merge` 改 profession farmer→librarian 后贴图由草帽棕围裙变为红白学者 |
+| #17 守卫者跳跃 | 无跳跃动画 | **未定** | 空中态确实进 `air`；跳跃剪辑 14 根骨骼有 51° 幅度，探针骨骼名大小写不匹配未能取到合并值，需按 `AllBody/UpBody` 大小写重测 |
+| #17 守卫者横游 | 游泳横躺 | **属资产设计** | `guardian.bbmodel` 名 `海洋怪物-守卫者-鱼形`，`guardian.swim` 对 `AllBody` 给 -82.5° X，鱼形模型横置即为设计意图；要改只能改动画（本轮禁止） |
+| #19 羊跳跃 | 无跳跃动画 | **未复现** | 强制升空时 `leg0`/`body` 位置在 -0.04~-0.26 之间随剪辑推进（剪辑目标值 -0.25 方块） |
+| #20 监守者片片 | 面剔除部分发黑 | **已定位，未提交修复** | 见下 |
+
+**#20 根因定位（黑色片状几何）**：按骨骼 UV 采样 `warden.png`，以下骨骼的 UV 全部落在纯黑像素上
+（mean RGB ≈ 0/255，且 `translucent` 层 alpha≈0），在基础 RC（`Material.default` + `Texture.default`）
+里被当成不透明几何绘制 → 表现为头/肩周围的黑色碎片：
+`groundwave_1..5`、`wind_2`、`light_1_2`、`light_2_1`、`light_2_2`、`chain`、`chain2`、`ghost1`、`ghost2`、
+`lefthandlocator`、`righthandlocator`（后两者本就是隐形挂点）。
+两条修复路径（都需要决策）：
+1. **RC 侧（本轮允许）**：给 `controller.render.warden` 加 `part_visibility` 把这些特效骨骼从基础通道隐藏，
+   由发光 overlay RC 负责。实测（临时改 build 资源 + `reloadResourcePacks`）渲染确有变化（中心区域 1536 px 变化），
+   但因无法确认美术是否要靠这些骨骼出"光波"，未提交。
+2. **资产侧（本轮禁止）**：修正这些骨骼的 UV 或把它们拆到专用贴图/几何。
+
+**打包与产物（GRADLE）**
+
+- `stonecutter.gradle` 新增根项目任务：
+  - `collectArtifacts`：`dependsOn :<mc>:assemble`，把 `dokimobs-<mod_version>+<mc>-<loader>.jar` 与
+    `mavenLocal` 的 `eyelib-<eyelib_version>+<mc>-<loader>.jar` 平铺复制到 `artifacts/`；缺件直接失败。
+  - `cleanOldArtifacts`：按 `mod_version`/`eyelib_version`（从 `gradle.properties` 读，不硬编码）删除
+    `artifacts/` 内其它版本文件，保留当前 jar 及其 `.asc/.sha256/.sha1/.md5` 衍生文件。
+  - 两个任务均通过 configuration cache（执行期不调用 `project.*`，目录在配置期取定）。
+- `build.gradle` 发布仓库改为 `url = project.rootProject.file('repo')`：原 `"file://${projectDir}/repo"`
+  在 Windows 上生成 `file://E:\...` 非法 URI，`publish` 因 configuration cache 序列化失败而整体报错。
+- 产物内容（0.2.0 / eyelib 21.1.23）：`dokimobs-0.2.0+{1.20.1-forge,1.21.1-neoforge,26.1.2-neoforge}.jar`
+  + 对应三个 `eyelib-21.1.23+...jar`，共 6 个 jar 平铺。
+
+**26.1.2 开发运行环境坑（本轮踩到）**：`versions/26.1.2/build/moddev` 的 run classpath 是生成物，
+若 `build.gradle` 改了 `eyelib_version` 而没重建，客户端会以旧 eyelib 启动并因
+`Mod dokimobs requires eyelib 21.1.23 or above / Currently, eyelib is 21.1.15` 直接崩溃。
+处理：先 `mcmcp_build(version="26.1.2")` 刷新 `clientRunClasspath.txt` 再 launch。
+另：**运行中的 MC 客户端会占用 `build/moddev/artifacts/*.jar`**，此时跑任何触发
+`createMinecraftArtifacts` 的 Gradle 任务会以 `AccessDeniedException ... .jar.tmp -> .jar` 失败，
+必须先关闭客户端。

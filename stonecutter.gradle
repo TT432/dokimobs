@@ -10,3 +10,74 @@ stonecutter.active '1.21.1'
 stonecutter.handlers {
     inherit 'java', 'json'
 }
+
+// ---------------------------------------------------------------------------
+// artifacts/ 汇总（根项目任务）
+// 三个版本的 dokimobs jar + 对应 eyelib jar 平铺汇总到 <根>/artifacts。
+// 版本号一律从 gradle.properties / stonecutter 节点读取，不硬编码：
+//   dokimobs-<mod_version>+<mc>-<loader>.jar
+//   eyelib-<eyelib_version>+<mc>-<loader>.jar（mavenLocal，../qylEyelib 发布）
+// ---------------------------------------------------------------------------
+def artifactNodes = ['1.20.1', '1.21.1', '26.1.2']
+def artifactModId = providers.gradleProperty('mod_id').get()
+def artifactModVersion = providers.gradleProperty('mod_version').get()
+def artifactEyelibVersion = providers.gradleProperty('eyelib_version').get()
+def artifactLoaderFor = { String mc -> mc == '1.20.1' ? 'forge' : 'neoforge' }
+def artifactMavenLocal = new File(
+        (System.getProperty('maven.repo.local') ?: new File(System.getProperty('user.home'), '.m2/repository').absolutePath))
+
+def expectedArtifactNames = artifactNodes.collectMany { mc ->
+    ["${artifactModId}-${artifactModVersion}+${mc}-${artifactLoaderFor(mc)}.jar",
+     "eyelib-${artifactEyelibVersion}+${mc}-${artifactLoaderFor(mc)}.jar"]
+}
+// 配置期取定目录对象（configuration cache 下执行期禁止调用 project.*）
+def artifactsDir = layout.projectDirectory.dir('artifacts').asFile
+
+tasks.register('collectArtifacts', Copy) {
+    group = 'build'
+    description = '把三个版本的 dokimobs 与 eyelib 最新 jar 平铺汇总到 artifacts/'
+    // 用 assemble 而非 jar：1.20.1 legacy forge 的最终产物由 reobfJar 产出（jar 之后）
+    dependsOn artifactNodes.collect { ":${it}:assemble" }
+    into layout.projectDirectory.dir('artifacts')
+    artifactNodes.each { mc ->
+        from(project(":${mc}").layout.buildDirectory.dir('libs')) {
+            include "${artifactModId}-${artifactModVersion}+${mc}-${artifactLoaderFor(mc)}.jar"
+        }
+        from(artifactMavenLocal) {
+            include "io/github/tt432/eyelib/${artifactEyelibVersion}+${mc}-${artifactLoaderFor(mc)}/" +
+                    "eyelib-${artifactEyelibVersion}+${mc}-${artifactLoaderFor(mc)}.jar"
+            eachFile { it.path = it.name }
+            includeEmptyDirs = false
+        }
+    }
+    doLast {
+        def missing = expectedArtifactNames.findAll { !new File(artifactsDir, it).isFile() }
+        if (!missing.isEmpty()) {
+            throw new GradleException("artifacts/ 缺少预期产物: ${missing.join(', ')}")
+        }
+        logger.lifecycle("artifacts/ 已汇总 ${expectedArtifactNames.size()} 个 jar: ${expectedArtifactNames.join(', ')}")
+    }
+}
+
+// 清理旧产物：只保留当前版本号（含 .asc/.sha256 等衍生文件），其余删除。
+tasks.register('cleanOldArtifacts') {
+    group = 'build'
+    description = '删除 artifacts/ 中非当前版本的旧产物（保留当前 jar 与其 .asc/.sha256/.sha1/.md5 衍生文件）'
+    doLast {
+        def dir = artifactsDir
+        if (!dir.isDirectory()) {
+            logger.lifecycle('artifacts/ 不存在，无需清理')
+            return
+        }
+        def keep = expectedArtifactNames as Set
+        def deleted = []
+        dir.eachFileRecurse { f ->
+            if (!f.isFile()) return
+            def name = f.name
+            def keepFile = keep.any { k -> name == k || name.startsWith(k + '.') }
+            if (!keepFile && f.delete()) deleted.add(f.name)
+        }
+        logger.lifecycle(deleted.isEmpty() ? '没有需要清理的旧产物'
+                : "已删除 ${deleted.size()} 个旧产物: ${deleted.join(', ')}")
+    }
+}

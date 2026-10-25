@@ -352,7 +352,9 @@ publishing {
     repositories {
         mavenLocal()
         maven {
-            url "file://${project.rootProject.projectDir}/repo"
+            // 用 File（而非 "file://${...}" 字符串）：Windows 反斜杠拼进 file:// URI 会让
+            // configuration cache 序列化失败（Cannot convert URI 'file://E:\.../repo' to a file）
+            url = project.rootProject.file('repo')
         }
     }
 }
