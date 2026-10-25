@@ -135,7 +135,7 @@ animation controller。已用脚本对照 HEAD 逐项确认 `models`/`animation.
 | #14 蜘蛛走路 | 平移不摆腿 | **未复现** | 静止时 `anim_time` 冻结、腿骨保持；移动时 8 条腿位置随位移循环（1.20.1/1.21.1/26.1.2 一致） |
 | #15 村民睡觉 | 无睡觉动画 | **未复现** | `startSleeping` 后 `base` 控制器进 `get_in_bed`，`waist` rot.x=1.571、`leg` rot.x=-1.571、`waist` pos.y=-0.5（平躺） |
 | #15 村民换装 | 职业不换装 | **未复现** | `/data merge` 改 profession farmer→librarian 后贴图由草帽棕围裙变为红白学者 |
-| #17 守卫者跳跃 | 无跳跃动画 | **未定** | 空中态确实进 `air`；跳跃剪辑 14 根骨骼有 51° 幅度，探针骨骼名大小写不匹配未能取到合并值，需按 `AllBody/UpBody` 大小写重测 |
+| #17 守卫者跳跃 | 无跳跃动画 | **未复现** | 空中态进 `air`；按正确大小写重测：`UpBody` rot≈(-0.16,0.13,0)、`UpperBody` rot≈(0.16,0.07,0)、`LeftArm` rot≈(0.21,0.09,-0.49 rad≈-28°)，剪辑在播（幅度是否够"看得出"属美术判断）|
 | #17 守卫者横游 | 游泳横躺 | **属资产设计** | `guardian.bbmodel` 名 `海洋怪物-守卫者-鱼形`，`guardian.swim` 对 `AllBody` 给 -82.5° X，鱼形模型横置即为设计意图；要改只能改动画（本轮禁止） |
 | #19 羊跳跃 | 无跳跃动画 | **未复现** | 强制升空时 `leg0`/`body` 位置在 -0.04~-0.26 之间随剪辑推进（剪辑目标值 -0.25 方块） |
 | #20 监守者片片 | 面剔除部分发黑 | **已定位，未提交修复** | 见下 |
@@ -145,11 +145,14 @@ animation controller。已用脚本对照 HEAD 逐项确认 `models`/`animation.
 里被当成不透明几何绘制 → 表现为头/肩周围的黑色碎片：
 `groundwave_1..5`、`wind_2`、`light_1_2`、`light_2_1`、`light_2_2`、`chain`、`chain2`、`ghost1`、`ghost2`、
 `lefthandlocator`、`righthandlocator`（后两者本就是隐形挂点）。
-两条修复路径（都需要决策）：
-1. **RC 侧（本轮允许）**：给 `controller.render.warden` 加 `part_visibility` 把这些特效骨骼从基础通道隐藏，
-   由发光 overlay RC 负责。实测（临时改 build 资源 + `reloadResourcePacks`）渲染确有变化（中心区域 1536 px 变化），
-   但因无法确认美术是否要靠这些骨骼出"光波"，未提交。
-2. **资产侧（本轮禁止）**：修正这些骨骼的 UV 或把它们拆到专用贴图/几何。
+**RC 侧能否修？实测否**：固定相机、只替换 `versions/1.21.1/build/resources/.../pack.cospack`
+并 `reloadResourcePacks` 做 A/B（三种 RC：原样 / 隐藏上述 15 根特效骨骼 / 只隐藏 `patch`）：
+近黑像素 14757 / 14512 / 15134，三者相差在动画相位噪声量级；画面上那几片大的黑色块（手臂
+`punch_left` 29 cubes、`punch_right` 27 cubes 与头部装甲）**不随 part_visibility 变化**。
+即：肉眼可见的黑色来自这些装甲 cubes 本身 UV 落在 `warden.png` 深色区（mean RGB 5~8/255），
+不是特效骨骼分层问题 → **控制器/材质侧无法修复**，只能改资产（UV/贴图/几何），
+而资产修改在本轮约束（不允许改 model & animation）之外。特效骨骼（groundwave/wind/light/chain/ghost）
+在基础通道确为纯黑不可见，可另行确认是否需要 `part_visibility`，但它不是本次反馈的黑色来源。
 
 **打包与产物（GRADLE）**
 
