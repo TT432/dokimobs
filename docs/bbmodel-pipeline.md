@@ -181,3 +181,25 @@ animation controller。已用脚本对照 HEAD 逐项确认 `models`/`animation.
 另：**运行中的 MC 客户端会占用 `build/moddev/artifacts/*.jar`**，此时跑任何触发
 `createMinecraftArtifacts` 的 Gradle 任务会以 `AccessDeniedException ... .jar.tmp -> .jar` 失败，
 必须先关闭客户端。
+
+## 2026-10-27 飞书反馈（#24/#25/#26/#27，1.20.1 实机）
+
+- **监守者透明环孔黑块（#24）**：第二基础主纹理引用 `minecraft:entity_nocull`，不能直接继承
+  SOLID。`doki.material` 新增 `entity_nocull:entity_alphatest` 并加 `DisableCulling`；实机正视角
+  环孔透明区域恢复，不再出现实体黑块。
+- **村民睡眠朝向/悬浮（#25）**：`ClientEntitySetup` 在 sleeping 且床朝向有效时按床轴居中，
+  offset 使用 `eyeHeight(STANDING)-0.1`，实体旋转用 `YP.rotationDegrees(-bed.toYRot())`。
+  Bedrock `get_in_bed` 已包含平躺姿态，不再额外加 ZP 90°。四床向均贴床且头向正确；
+  `stopSleeping` 后恢复 STANDING 与直立。
+- **守卫者尾鳍反曲（#27）**：`guardian.jump` 的 DownBody4/DownBody5 全关键帧 X 分别 +19°/+17°；
+  实机尾鳍连续顺弯。结构化 diff 应只含这两个骨骼的 10 个 X 字段。
+- **蜘蛛移动反复下蹲（#26）**：`controller.animation.mdsj_spider.rest` 原在移动时按片长循环
+  `default → stand → rest`。改为 initial/default 优先 `stand:q.is_moving`，rest→stand 不再等待
+  动画结束，stand 仅在 `!q.is_moving` 时回 default；持续逐 tick 位移的多次采样均保持 stand。
+- **cospack 同名控制器覆盖**：蜘蛛与洞穴蜘蛛条目各自内嵌同名 rest 控制器，全局扁平化后后加载
+  条目覆盖先加载条目。只改蜘蛛条目不会生效，两份共享定义及 `work/entries` 解包副本必须同步；
+  修改后需重启客户端，单次 `reloadResourcePacks` 未重载该 cospack 定义。
+- **移动状态探针**：只设 `setDeltaMovement` 不足以稳定驱动 `q.is_moving`；应逐 tick 在服务端线程
+  实际 `move(MoverType.SELF, ...)` 并设置 delta。100ms 间隔会留下无位移 tick，造成 stand/rest
+  交替的探针假阴性；用 50ms 连续位移，跨多次短 eval 采样，禁止在渲染线程 sleep。
+
