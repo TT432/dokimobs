@@ -206,6 +206,11 @@ animation controller。已用脚本对照 HEAD 逐项确认 `models`/`animation.
 
 ## 2026-10-28 飞书反馈最终复验（#2/#14/#15/#17/#20）
 
+**验证范围**：1.20.1（Forge）、1.21.1（NeoForge）、26.1.2（NeoForge）均启动真实客户端逐项复验，
+不是由单一版本推断其他版本。职业 variant、睡眠/行走、蜘蛛腿骨、守卫者垂直状态与尾鳍、监守者
+材质与音爆均逐版采样；#20 三版均已目检音爆期间正、背截图，未见黑片。村民行走位移三版均验证；
+行走控制器 base 在采样中保持 default，因此不宣称观察到独立 walk state。
+
 - **监守者黑片（#20）**：废弃 10-25「只能改 UV/资产」结论。最终为基础通道使用独立
   `doki_warden_alphatest_nocull:entity_alphatest` 材质并启用 `DisableCulling`，运行时解析为
   `PortRenderPass[ALPHA_TEST,cull=false]`；固定实体正/背视角截图均不再出现黑片，未修改模型 UV 或贴图。

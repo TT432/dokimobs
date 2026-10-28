@@ -35,8 +35,12 @@ public final class DokiMolangQueries {
             if (!w.sonicBoomAnimationState.isStarted()) {
                 return 0F;
             }
+            //? if modern {
+            return w.sonicBoomAnimationState.getTimeInMillis(w.tickCount) < 4_300L ? 1F : 0F;
+            //?} else {
             w.sonicBoomAnimationState.updateTime(w.tickCount, 1.0F);
             return w.sonicBoomAnimationState.getAccumulatedTime() < 4_300L ? 1F : 0F;
+            //?}
         }).orElse(0F);
     }
 }
