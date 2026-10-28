@@ -28,4 +28,15 @@ public final class DokiMolangQueries {
     public static float wardenAnger(MolangScope scope) {
         return scope.getHostContext().get(WARDEN).map(w -> (float) w.getClientAngerLevel()).orElse(0F);
     }
+
+    @MolangFunction(value = "doki_warden_sonic_boom", description = "监守者客户端 Sonic Boom 动画是否处于完整剪辑播放窗口")
+    public static float wardenSonicBoom(MolangScope scope) {
+        return scope.getHostContext().get(WARDEN).map(w -> {
+            if (!w.sonicBoomAnimationState.isStarted()) {
+                return 0F;
+            }
+            w.sonicBoomAnimationState.updateTime(w.tickCount, 1.0F);
+            return w.sonicBoomAnimationState.getAccumulatedTime() < 4_300L ? 1F : 0F;
+        }).orElse(0F);
+    }
 }

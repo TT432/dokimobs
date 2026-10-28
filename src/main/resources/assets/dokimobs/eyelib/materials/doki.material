@@ -1,6 +1,6 @@
 {
   "materials": {
-    "entity_nocull:entity_alphatest": {
+    "doki_warden_alphatest_nocull:entity_alphatest": {
       "+states": ["DisableCulling"]
     },
     "doki_warden_glow_nocull:warden_bioluminescent_layer": {

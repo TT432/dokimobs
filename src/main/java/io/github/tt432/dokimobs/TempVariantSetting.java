@@ -117,11 +117,11 @@ public class TempVariantSetting {
                         case "cartographer" -> 6;
                         case "cleric" -> 7;
                         case "armorer" -> 8;
-                        case "weapon_smith" -> 9;
-                        case "tool_smith" -> 10;
+                        case "weaponsmith" -> 9;
+                        case "toolsmith" -> 10;
                         case "butcher" -> 11;
                         case "leatherworker" -> 12;
-                        case "stonemason" -> 13;
+                        case "mason" -> 13;
                         case "nitwit" -> 14;
                         default -> 0;
                     };

@@ -87,28 +87,29 @@
         "default": {
           "transitions": [
             {
-              "air": "!q.is_on_ground&&!q.is_in_water"
+              "air": "!q.is_on_ground&&!q.is_in_water&&q.vertical_speed>0"
             }
           ],
           "animations": [
             {
               "idle": "!q.is_in_water&&!q.is_moving",
-              "swim_idle": "q.is_in_water&&!q.is_moving",
+              "swim_idle": "q.is_in_water&&!q.is_moving&&q.vertical_speed<=0.5",
               "walk": "!q.is_in_water&&q.is_moving",
-              "swim": "q.is_in_water&&q.is_moving"
+              "swim": "q.is_in_water&&q.is_moving&&q.vertical_speed<=0.5",
+              "jump": "q.is_in_water&&q.vertical_speed>0.5"
             }
           ]
         },
         "air": {
           "transitions": [
             {
-              "default": "q.is_on_ground||q.is_in_water"
+              "default": "q.is_on_ground||q.is_in_water||q.vertical_speed<=0"
             }
           ],
           "blend_transition": 0.15,
           "animations": [
             {
-              "jump": "1.0"
+              "jump": "q.vertical_speed>0"
             }
           ]
         }

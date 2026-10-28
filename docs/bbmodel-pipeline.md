@@ -150,8 +150,9 @@ animation controller。已用脚本对照 HEAD 逐项确认 `models`/`animation.
 近黑像素 14757 / 14512 / 15134，三者相差在动画相位噪声量级；画面上那几片大的黑色块（手臂
 `punch_left` 29 cubes、`punch_right` 27 cubes 与头部装甲）**不随 part_visibility 变化**。
 即：肉眼可见的黑色来自这些装甲 cubes 本身 UV 落在 `warden.png` 深色区（mean RGB 5~8/255），
-不是特效骨骼分层问题 → **控制器/材质侧无法修复**，只能改资产（UV/贴图/几何），
-而资产修改在本轮约束（不允许改 model & animation）之外。特效骨骼（groundwave/wind/light/chain/ghost）
+~~不是特效骨骼分层问题 → **控制器/材质侧无法修复**，只能改资产（UV/贴图/几何）。~~
+**此结论已于 2026-10-28 实机复验后废弃**：最终根因与修复见文末同日记录；未修改 UV/贴图/几何，
+独立 alpha-test 不剔除材质已消除正背视角黑片。特效骨骼（groundwave/wind/light/chain/ghost）
 在基础通道确为纯黑不可见，可另行确认是否需要 `part_visibility`，但它不是本次反馈的黑色来源。
 
 **#2 傻子村民用工作方块不换皮肤（10-25 被测试者改回「未修复」）**：属原版机制而非同步缺陷。
@@ -202,4 +203,22 @@ animation controller。已用脚本对照 HEAD 逐项确认 `models`/`animation.
 - **移动状态探针**：只设 `setDeltaMovement` 不足以稳定驱动 `q.is_moving`；应逐 tick 在服务端线程
   实际 `move(MoverType.SELF, ...)` 并设置 delta。100ms 间隔会留下无位移 tick，造成 stand/rest
   交替的探针假阴性；用 50ms 连续位移，跨多次短 eval 采样，禁止在渲染线程 sleep。
+
+## 2026-10-28 飞书反馈最终复验（#2/#14/#15/#17/#20）
+
+- **监守者黑片（#20）**：废弃 10-25「只能改 UV/资产」结论。最终为基础通道使用独立
+  `doki_warden_alphatest_nocull:entity_alphatest` 材质并启用 `DisableCulling`，运行时解析为
+  `PortRenderPass[ALPHA_TEST,cull=false]`；固定实体正/背视角截图均不再出现黑片，未修改模型 UV 或贴图。
+- **监守者音爆（#20）**：`query.doki_warden_sonic_boom` 窗口为 4300ms；default 控制器的
+  initial/default/move/run/sonic_attack 五处统一使用该查询。常驻 `bob` 与 `look_at_target`
+  在音爆期间停播，避免其零缩放/姿态轨道覆盖 sonic 子动画。实机 0~4200ms 为 `sonic_attack`，
+  1800~3000ms 光波、风、幽灵等骨骼缩放非零；4300ms 回 `default` 且特效缩放全部归零。
+- **守卫者游泳/尾鳍（#17）**：水中上升与下降保持 `default`，DownBody4/DownBody5 连续非零变化；
+  陆地上升进入 `air`，尾鳍剪辑随 `query.vertical_speed` 推进，下降回 `default`。水内近景与陆地
+  正视角截图均已核对。
+- **村民（#2/#15）**：职业键必须使用注册表实际值 `weaponsmith`/`toolsmith`/`mason`，对应
+  variant 9/10/13；实机切换后客户端 query 与贴图同步变化。NITWIT 使用工作方块不就职属于原版机制，
+  不能与职业同步缺陷混同。`startSleeping` 后 base 控制器进入 `get_in_bed`，`query.is_sleeping=1`；
+  傻子行走正/侧面连续帧已核对，腿部摆幅修正后未见互相穿模。
+- **蜘蛛（#14）**：沿用已完成的移动实测结论，移动时 8 腿循环，无需追加代码改动。
 
