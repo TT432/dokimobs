@@ -227,3 +227,37 @@ animation controller。已用脚本对照 HEAD 逐项确认 `models`/`animation.
   傻子行走正/侧面连续帧已核对，腿部摆幅修正后未见互相穿模。
 - **蜘蛛（#14）**：沿用已完成的移动实测结论，移动时 8 腿循环，无需追加代码改动。
 
+
+## 2026-10-30 村民走路脚部穿模（#15/#25）修复与实测口径
+
+**症状**：村民行走时脚陷进地面。**根因**：`animation.mdsj_villager.walking` 的 `root.position`
+`y` 通道全周期为负（-0.25~-0.877 px），整具模型被下压，最低顶点落到地面以下。
+
+**修法**（只改 cospack 内动画剪辑，不动 bind 几何，静止/睡觉不受影响）：
+`animation.mdsj_villager.walking`、`animation.mdsj_illager.sprint_evoker` 的 `root.position.y`
+逐相位抬升（只抬不降，24fps 关键帧求解，`work/cospack_footlift_20261030.py`）。
+`work/pack.before_footlift.cospack` 保留穿模前基线用于 A/B。
+
+**1.20.1 实机证据**（同一驱动 + 同一相机 + 18s 采样的顶点级探针）：
+- 行走最低点：基线 **-0.0986 格** → 修复后 **-0.0682 格**；
+- 站立/idle 自身最低点为 -0.0755 格，即**修复后走路已不比站着更深**（修复前比 idle 深 0.023 格）；
+- 近景截图：修复后鞋子完整踩在地面，修复前小腿被地面平面切掉（`work/v3f_*.png` vs `work/v3b_3_crop.png`）。
+- 离线几何求值（15 套 geometry × 全周期）基线最低 ∈[-0.0750,-0.0375]，修复后 ≥-0.0015。
+
+**探针口径坑（重要，别再踩）**：
+1. `RenderParams.poseStack().last().pose()` 变换 (0,0,0) 得到的"模型原点"**包含当帧动画/根骨骼平移**，
+   不能当穿模基线：同一批静止村民换相机后该值在 -0.42~-1.20 间漂移，相对量随之漂移 0.05 格。
+   可信口径只有「同条件相对比较」+「近景截图」。
+2. 真实渲染走 `HighSpeedRenderModelVisitor`（`ActiveModelRenderVisitors.RENDER_VISITOR`）的烘焙快路径
+   `renderBakedBone` + `static visitVertex(BakedModel.BakedBone, ...)`；`visitCube` 是空实现，
+   插桩 `RenderModelVisitor` 对实体渲染无效。`BakedBone.position` 是 bind 模型空间，`positionResult` 是已变换结果。
+3. GPU 蒙皮（`-Deyelib.gpuSkinning=false` 关闭）时经典顶点写入被跳过；该属性是 `static final`，必须启动前设置。
+4. 开关值不要用 `Boolean.getBoolean("-Dx=1")`（`parseBoolean("1")==false`），用显式字符串比较。
+
+**工具坑（本机 Windows）**：
+- 端口 **44620-48715 整段 bind 失败**（WinError 10013，`netsh ... show excludedportrange` 不显示），
+  `mcmcp_launch` 随机端口落进去会让 `AIDebugServer` 报 `BindException` 并让 /ping 静默超时；
+  可用段 41000-44619，本项目调试固定 `port=43017`。
+- `minecraft.reloadResourcePacks()` 对 cospack 的**动画剪辑**生效（实测改 walking 后同一实体最低点立即变化），
+  换包试参数不必重启客户端；此前记录的「控制器定义不重载」结论不适用于剪辑数据。
+- 截图 `Screenshot.grab(gameDirectory, name, mainRenderTarget, c->{})` 落到 `run/screenshots/<name>`（无扩展名）。
