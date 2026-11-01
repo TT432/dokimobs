@@ -46,8 +46,11 @@ cmd.exe /c gradlew.bat collectArtifacts --no-daemon --console=plain
 
 ## 步骤 4：验收
 - `https://r.jina.ai/https://www.curseforge.com/minecraft/mc-mods/dokimobs/files/all?page=1&pageSize=20&sortBy=dateCreated&sortOrder=desc&cb=<唯一串>`：出现新文件名、标 `Latest release`、Game Versions 与 Mod Loaders 正确、Size 与本地 jar 一致。
-- 文件详情页 `.../files/<fileId>` 在刚上传后可能先被 Cloudflare 拦（`Just a moment...`）或 404，实测 10–40 分钟才可访问；`files/all` 出现即视为已公开。
+- 文件详情页 `.../files/<fileId>`：确认 `File ID`、`Type R Release`、`Size`、`Mod Loaders`、`Supported game versions` 与预期节点一致，且 `What's new` 段渲染出 markdown changelog。
 - 上传接口返回 200 只证明「已受理」，不证明已公开——**以 `files/all` 为准**。
+- 2026-11-01 实测时间线（0.2.0）：22:11 上传完成 → 22:31 `files/all` 出现第 1 个文件（1.21.1）→ 22:44 三个文件全部出现且各自标 `Latest release`；详情页在 22:50 左右可读。即「分钟级到约半小时」，不必重传。
+- Size 只到 0.1 MB 精度（本地 9636031 B 显示 `9.2 MB`），可作量级核对；**无法用哈希核对已上传字节**：`https://mediafilez.forgecdn.net/files/<id/1000>/<id%1000>/<文件名>` 与 `.../download/<fileId>` 无签名直连一律 403。
+- 轮询脚本：`work/cf_wait_verify_all.py`（每 4 分钟取一次 `files/all`，三个文件名全出现即保存页面到 `work/cf-0.2.0-files-page-all.txt` 并退出）；遇到 `Just a moment` 视为一次失败轮次，继续等。
 
 ## Common Pitfalls
 - [when 用 `x-api-key` + `api.curseforge.com` 上传] 403；作者 token 只认 legacy Upload API。
@@ -55,4 +58,6 @@ cmd.exe /c gradlew.bat collectArtifacts --no-daemon --console=plain
 - [when 直接 curl / 无头浏览器读 CF 页面] 被 Cloudflare 拦成 403 或 `Just a moment`；一律用 `https://r.jina.ai/<url>` 读取，URL 上加唯一 query 参数绕缓存。
 - [when 只跑 `clean assemble` 就宣称「当前源码可构建」] Gradle build cache 会命中 `compileJava FROM-CACHE`；必须 `--no-build-cache`，并用 jar 哈希与 `artifacts/` 比对来证明产物与工作树同源（对应 2026-10-28 交付过度的反馈）。
 - [when 想删 CF 上的错误文件] 无可用删除 API；只能作者在网页文件页手动删除。
+- [when 想用第三方镜像 `https://api.cfwidget.com/minecraft/mc-mods/dokimobs` 验收] 它返回 JSON 且不被 Cloudflare 拦，但索引明显滞后（0.2.0 已公开 40 分钟后仍只列 11 个旧文件），只能作旁证，不能当验收依据。
 - [when 26.1.2 节点报 CF 不认识该游戏版本] 先用 `minecraft.curseforge.com/api/game/versions` 确认名字存在（2026-11-01 实测存在），不要退回旧版托管字段。
+- [when 发现详情页标题是 `dokimobs-0.2.0+1.20.1-forge.jar` 而 `File name` 字段显示 `dokimobs-0.2.0-1.20.1-forge.jar`] 本次实测两者不一致：`displayName` 保留 `+`，CF 的 file-name 字段把 `+` 显示成 `-`。列表页与标题都取 `displayName`，因此不影响识别；若要绝对确定，下载后看实际文件名。
