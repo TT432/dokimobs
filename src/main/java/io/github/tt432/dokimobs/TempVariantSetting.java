@@ -3,6 +3,7 @@ package io.github.tt432.dokimobs;
 import io.github.tt432.dokimobs.data.DokiData;
 import io.github.tt432.eyelib.behavior.SyncedBehaviorState;
 import io.github.tt432.dokimobs.data.EntityDokiData;
+import io.github.tt432.dokimobs.data.EntityDokiVariant;
 import io.github.tt432.eyelib.bridge.attachment.dataattach.mc.DataAttachmentHelper;
 import io.github.tt432.eyelib.bridge.attachment.network.adapter.DataAttachmentSyncRuntime;
 import io.github.tt432.eyelib.bridge.capability.adapter.EyelibAttachableData;
@@ -53,6 +54,7 @@ import net.neoforged.neoforge.event.tick.EntityTickEvent;
 //?}
 
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * @author TT432
@@ -144,9 +146,9 @@ public class TempVariantSetting {
         }
 
         /**
-         * 村民变体落盘 + 同步。渲染期 query.variant/mark_variant 读 SyncedBehaviorState
+         * 变体落盘 + 同步。渲染期 query.variant/mark_variant 读 SyncedBehaviorState
          * （EntityRenderOrchestrator.setupSyncedBehaviorContext），不是 EntityBehaviorData；
-         * 且附件无自动同步，职业/类型变化后必须显式 syncTrackedAndSelf——
+         * 且附件无自动同步，值变化后必须显式 syncTrackedAndSelf——
          * 旧实现两者皆错（皮肤不随职业切换的根因）。仅在值变化时写，避免逐 tick 分配与发包。
          */
         static void syncVariantIfChanged(Entity entity, int variantId, int markVariantId) {
@@ -162,59 +164,82 @@ public class TempVariantSetting {
         }
 
         /**
-         * 随机/原版变体落盘 + 同步。渲染期 query.variant/mark_variant 读 SyncedBehaviorState
-         * （EntityRenderOrchestrator.setupSyncedBehaviorContext），不是 EntityBehaviorData；
-         * 且附件无自动同步——旧实现只写服务端 EntityBehaviorData，客户端永远读到 0
-         * （鸡换色消失、僵尸/羊驼/狐狸变体失效的根因，2026-10-12 实机 dump 实证）。
+         * 掷骰落盘 + 镜像 {@link SyncedBehaviorState}。
+         * <p>
+         * 掷骰语义：<b>dokimobs 自己的 variant 附件存在 = 已掷骰</b>。旧实现在每次
+         * EntityJoinLevelEvent（= 每次区块重载 / 世界重进）都无条件重新 {@code nextInt}，
+         * 覆盖掉已持久化的 SyncedBehaviorState——僵尸/鸡/狐狸换一次存档就换一次皮肤
+         * （2026-11-02 实机：24 只僵尸中 17 只重载后变体改变）。
+         * <p>
+         * 用 priority = LOW 保证排在 eyelib 的 spawn 逻辑（默认 NORMAL）之后，
+         * 这样镜像时能拿到行为包刚写下的 scale（如僵尸 0.5）并原样保留。
          */
-        static void syncVariant(Entity entity, int variantId, int markVariantId) {
-            var data = DataAttachmentHelper.getOrCreate(EyelibAttachableData.syncedBehaviorState(), entity);
+        @SubscribeEvent(priority = EventPriority.LOW)
+        public static void onEvent(EntityJoinLevelEvent event) {
+            if (event.getLevel().isClientSide()) {
+                return;
+            }
 
-            var newState = new SyncedBehaviorState(variantId, data.scale(), markVariantId);
-            DataAttachmentHelper.setLocal(EyelibAttachableData.syncedBehaviorState(), entity, newState);
-            DataAttachmentSyncRuntime.syncTrackedAndSelf(EyelibAttachableData.syncedBehaviorState(), entity, newState);
+            Entity entity = event.getEntity();
+
+            if (entity instanceof Zombie z) {
+                EntityDokiVariant rolled = rolledVariant(z, () -> new EntityDokiVariant(z.getRandom().nextInt(3), 0));
+                syncVariantIfChanged(z, rolled.variant(), rolled.markVariant());
+            } else if (entity instanceof Llama llama) {
+                // 羊驼变体来自原版 JE 数据（固定），可直接对齐，无需掷骰
+                syncVariantIfChanged(llama, llama.getVariant().getId(), llama instanceof TraderLlama ? 1 : 0);
+            } else if (entity instanceof Fox fox) {
+                EntityDokiVariant rolled = rolledVariant(fox, () -> new EntityDokiVariant(randomFoxVariant(fox), 0));
+                syncVariantIfChanged(fox, rolled.variant(), rolled.markVariant());
+            } else if (entity instanceof Chicken chicken) {
+                EntityDokiVariant rolled = rolledVariant(chicken, () -> new EntityDokiVariant(chicken.getRandom().nextInt(3), 0));
+                syncVariantIfChanged(chicken, rolled.variant(), rolled.markVariant());
+            } else if (entity instanceof Villager) {
+                // handled by tick event above
+            }
         }
 
-        @SubscribeEvent
-        public static void onEvent(EntityJoinLevelEvent event) {
-            if (!event.getLevel().isClientSide()) {
-                Entity entity = event.getEntity();
+        /**
+         * 已掷过骰则返回落盘的变体，否则掷一次并写入附件。
+         * 附件是否存在即「是否已掷骰」，因此区块重载/世界重进/跨维度重建都不会重掷。
+         */
+        static EntityDokiVariant rolledVariant(Entity entity, Supplier<EntityDokiVariant> roll) {
+            EntityDokiVariant existing = DataAttachmentHelper.getOrNull(DokiData.VARIANT.get(), entity);
 
-                if (entity instanceof Zombie z) {
-                    syncVariant(z, z.getRandom().nextInt(3), 0);
-                } else if (entity instanceof Llama llama) {
-                    syncVariant(llama, llama.getVariant().getId(), llama instanceof TraderLlama ? 1 : 0);
-                } else if (entity instanceof Fox fox) {
-                    //? if !modern {
-                    if (fox.getVariant() == Fox.Type.SNOW) {
-                    //?} else {
-                    if (fox.getVariant() == Fox.Variant.SNOW) {
-                    //?}
-                        syncVariant(fox, switch (weightedRandom(fox.getRandom(), new int[]{5, 1, 1, 1})) {
-                            case 0 -> 1;
-                            case 1 -> 9;
-                            case 2 -> 10;
-                            case 3 -> 11;
-                            default -> -1;
-                        }, 0);
-                    } else {
-                        syncVariant(fox, switch (weightedRandom(fox.getRandom(), new int[]{5, 1, 1, 1, 1, 1, 1, 1})) {
-                            case 0 -> 0;
-                            case 1 -> 6;
-                            case 2 -> 2;
-                            case 3 -> 3;
-                            case 4 -> 4;
-                            case 5 -> 5;
-                            case 6 -> 8;
-                            case 7 -> 7;
-                            default -> -1;
-                        }, 0);
-                    }
-                } else if (entity instanceof Chicken chicken) {
-                    syncVariant(chicken, chicken.getRandom().nextInt(3), 0);
-                } else if (entity instanceof Villager) {
-                    // handled by tick event above
-                }
+            if (existing != null) {
+                return existing;
+            }
+
+            EntityDokiVariant rolled = roll.get();
+            DataAttachmentHelper.setLocal(DokiData.VARIANT.get(), entity, rolled);
+            return rolled;
+        }
+
+        private static int randomFoxVariant(Fox fox) {
+            //? if !modern {
+            if (fox.getVariant() == Fox.Type.SNOW) {
+            //?} else {
+            if (fox.getVariant() == Fox.Variant.SNOW) {
+            //?}
+                return switch (weightedRandom(fox.getRandom(), new int[]{5, 1, 1, 1})) {
+                    case 0 -> 1;
+                    case 1 -> 9;
+                    case 2 -> 10;
+                    case 3 -> 11;
+                    default -> -1;
+                };
+            } else {
+                return switch (weightedRandom(fox.getRandom(), new int[]{5, 1, 1, 1, 1, 1, 1, 1})) {
+                    case 0 -> 0;
+                    case 1 -> 6;
+                    case 2 -> 2;
+                    case 3 -> 3;
+                    case 4 -> 4;
+                    case 5 -> 5;
+                    case 6 -> 8;
+                    case 7 -> 7;
+                    default -> -1;
+                };
             }
         }
 
@@ -247,9 +272,11 @@ public class TempVariantSetting {
             Entity entity = event.getEntity();
             if (!isDokiManaged(entity)) return;
 
-            EntityDokiData dokiData = DataAttachmentHelper.getOrCreate(DokiData.DOKI.get(), entity);
+            // 附件存在 = 服务端已掷骰并同步到客户端；未同步前按 false（原版渲染）处理，
+            // 这里用 getOrNull 而不是 getOrCreate：客户端不该把「默认值」写进自己的容器。
+            EntityDokiData dokiData = DataAttachmentHelper.getOrNull(DokiData.DOKI.get(), entity);
             // 每帧双向设置：doki 同步晚于首帧渲染时，避免 false 粘性导致永久原版渲染
-            RenderData.getComponent(entity).setUseBuiltInRenderSystem(dokiData.doki());
+            RenderData.getComponent(entity).setUseBuiltInRenderSystem(dokiData != null && dokiData.doki());
         }
         //?} else {
         public static <T extends LivingEntity, S extends LivingEntityRenderState, M extends net.minecraft.client.model.EntityModel<? super S>>
@@ -259,9 +286,11 @@ public class TempVariantSetting {
             if (entity == null) return;
             if (!isDokiManaged(entity)) return;
 
-            EntityDokiData dokiData = DataAttachmentHelper.getOrCreate(DokiData.DOKI.get(), entity);
+            // 附件存在 = 服务端已掷骰并同步到客户端；未同步前按 false（原版渲染）处理，
+            // 这里用 getOrNull 而不是 getOrCreate：客户端不该把「默认值」写进自己的容器。
+            EntityDokiData dokiData = DataAttachmentHelper.getOrNull(DokiData.DOKI.get(), entity);
             // 每帧双向设置：doki 同步晚于首帧渲染时，避免 false 粘性导致永久原版渲染
-            RenderData.getComponent(entity).setUseBuiltInRenderSystem(dokiData.doki());
+            RenderData.getComponent(entity).setUseBuiltInRenderSystem(dokiData != null && dokiData.doki());
         }
 
         /**

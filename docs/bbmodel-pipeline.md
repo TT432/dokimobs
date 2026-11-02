@@ -76,6 +76,24 @@ assets/dokimobs/eyelib/animation_controllers/doki.json 迁移+新建控制器
   旧 eyelib（≤21.1.20）不再入队 clamped 派生 → 职业服装永久紫黑。eyelib 21.1.21 侧同时修复
   clamped 上传时机（见 eyelib docs/concepts/alpha-clamp-two-path.md「clamped 上传时机」），两层缺一不可。
   另：注册表 key 比较用 `.getPath()`（`minecraft:plains` → `plains`），勿用 toString。
+- **实体状态生命周期：附件存在 = 已掷骰（2026-11-02 实机定位）**：doki 开关与 dokimobs 侧随机
+  变体都遵循同一生命周期——**服务端掷一次并落盘，客户端只消费**。
+  `DataAttachmentHelper.getOrNull(...) != null` 即"已掷骰"，不是额外的 `init` 标志；因此
+  区块重载 / 世界重进 / 跨维度重建都不会重掷。旧实现有三处违背：
+  ① 每次 `EntityJoinLevelEvent` 无条件 `nextInt` 覆盖已持久化的 `SyncedBehaviorState`
+  （24 只 invulnerable 僵尸中 17 只在一次卸载重载后换皮）；
+  ② 客户端渲染期用 `getOrCreate`，把默认值写进客户端容器；
+  ③ 对掉落物/玩家等非活体掷骰，只会无意义撑大存档（ItemEntity 也落盘 `EntityDokiData`）。
+  现行约定：
+  - 掷骰入口只有 `EntityDokiData.rollIfAbsent`（服务端、`LivingEntity` 且非 `Player`）与
+    `TempVariantSetting.rolledVariant`（zombie/chicken/fox），均为"附件不存在才掷"；
+  - join 处理器用 `EventPriority.LOW`，排在 eyelib 行为包 spawn 之后，镜像 `SyncedBehaviorState`
+    时原样保留行为包刚写下的 `scale`（僵尸 0.5）；
+  - 客户端一律 `getOrNull`，`null` = 尚未同步 = 按原版渲染，每帧双向写
+    `useBuiltInRenderSystem` 避免晚同步导致的 false 粘性；
+  - 旧存档 `{init, doki}` 由 record codec 直接解码（多余键忽略），无需迁移脚本；
+  - 老存档里没有 `eyelib:doki_variant` 的 zombie/chicken/fox 在升级后首次 join 会重掷一次
+    （旧数据无从判断"是否掷过"），此后永久固定。
 - **狼/烈焰人控制器修正（2026-10-09）**：狼 movement 改用专属 `controller.animation.doki_wolf.movement`
   （不再借用 mdsj_sheep），实体 scale 0.75；烈焰人移除头发 ambient 控制器改 `doki_blaze.spear`，scale 0.8。
 
