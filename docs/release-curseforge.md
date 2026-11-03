@@ -4,7 +4,7 @@
 依赖项 `eyelib` 是独立项目（`../qylEyelib`），它的发版见该项目 `.opencode/skills/eyelib-release/SKILL.md`；本文档只覆盖 dokimobs 侧。
 
 ## 版本与坐标
-- 版本唯一来源：`gradle.properties` 的 `mod_version`（当前 `0.2.1`）。
+- 版本唯一来源：`gradle.properties` 的 `mod_version`（当前 `0.3.0`）。
 - 节点：`stonecutter.properties.toml` 的 `1.20.1`（legacy Forge）、`1.21.1`、`26.1.2`（NeoForge）。
 - 产物名：`dokimobs-${mod_version}+${minecraft_version}-${forge|neoforge}.jar`。
 - CurseForge 项目：ID `1234919`，slug `dokimobs`。
@@ -41,9 +41,10 @@ cmd.exe /c gradlew.bat collectArtifacts --no-daemon --console=plain
   | 1.21.1 | `["Client","Server","1.21.1","NeoForge"]` |
   | 26.1.2 | `["Client","Server","26.1.2","NeoForge"]` |
 - 其余字段：`releaseType: "release"`、`changelogType: "markdown"`、`displayName` 用**带 `.jar` 的完整文件名**（与本项目历史文件展示一致，eyelib 用的是去扩展名）。
-- 现成脚本：`work/cf_upload_0.2.1.py`（最新一版，`--dry-run` 只打印 metadata；传节点名可只发指定节点），改顶部 `VERSION` / `CHANGELOG` / `IDS_OUT` 即可复用到下一版。changelog 从 `work/cf-<version>-changelog.md` 读取。
+- 现成脚本：`work/cf_upload_0.3.0.py`（最新一版，`--dry-run` 只打印 metadata；传节点名可只发指定节点），改顶部 `VERSION` / `CHANGELOG` / `IDS_OUT` 即可复用到下一版。changelog 从 `work/cf-<version>-changelog.md` 读取。
 - 上传结果（本次 0.2.0）：`1.20.1 → 9395289`、`1.21.1 → 9395290`、`26.1.2 → 9395292`。
 - 上传结果（本次 0.2.1）：`1.20.1 → 9406394`、`1.21.1 → 9406396`、`26.1.2 → 9406399`；脚本同版复制为 `work/cf_upload_0.2.1.py`、`work/cf_wait_verify_0.2.1.py`（后者要求三个文件名全部出现才退出）。2026-11-02 实测：20:40 上传完成 → 20:53 `files/all` 三个文件全部可见，各文件页 `R Release`、`Size 9.2 MB`、Loader 与 game version 正确、changelog 已渲染。
+- 上传结果（本次 0.3.0）：`1.20.1 → 9415180`、`1.21.1 → 9415182`、`26.1.2 → 9415184`；脚本复制为 `work/cf_upload_0.3.0.py`、`work/cf_wait_verify_0.3.0.py`。2026-11-03 实测：三个节点串行上传共 32 秒，全部 HTTP 200（`{"id": ...}`）；14:28 上传完成 → 14:29/14:33/14:37 轮询仍 `0/3` → 14:41 `files/all` 三个文件全部可见（约 13 分钟），各自 `Latest release`、`R Release`、`Size 9.2 MB`、Mod Loaders 与 game version 正确、changelog（含 `无序合成` 段）已渲染。前置依赖已实测：CF 的 `eyelib` 项目同时存在 `eyelib-21.1.24+1.20.1-forge` / `+1.21.1-neoforge` / `+26.1.2-neoforge`。
 
 ## 步骤 4：验收
 - `https://r.jina.ai/https://www.curseforge.com/minecraft/mc-mods/dokimobs/files/all?page=1&pageSize=20&sortBy=dateCreated&sortOrder=desc&cb=<唯一串>`：出现新文件名、标 `Latest release`、Game Versions 与 Mod Loaders 正确、Size 与本地 jar 一致。
@@ -51,7 +52,7 @@ cmd.exe /c gradlew.bat collectArtifacts --no-daemon --console=plain
 - 上传接口返回 200 只证明「已受理」，不证明已公开——**以 `files/all` 为准**。
 - 2026-11-01 实测时间线（0.2.0）：22:11 上传完成 → 22:31 `files/all` 出现第 1 个文件（1.21.1）→ 22:44 三个文件全部出现且各自标 `Latest release`；详情页在 22:50 左右可读。即「分钟级到约半小时」，不必重传。
 - Size 只到 0.1 MB 精度（本地 9636031 B 显示 `9.2 MB`），可作量级核对；**无法用哈希核对已上传字节**：`https://mediafilez.forgecdn.net/files/<id/1000>/<id%1000>/<文件名>` 与 `.../download/<fileId>` 无签名直连一律 403。
-- 轮询脚本：`work/cf_wait_verify_0.2.1.py`（每 4 分钟取一次 `files/all`，**三个文件名全部出现**才保存页面到 `work/cf-<version>-files-page.txt` 并退出；0.2.0 版的 `cf_wait_verify.py` 只要求出现任意一个，容易误判为已全部公开）；遇到 `Just a moment` 视为一次失败轮次，继续等。
+- 轮询脚本：`work/cf_wait_verify_0.3.0.py`（每 4 分钟取一次 `files/all`，**三个文件名全部出现**才保存页面到 `work/cf-<version>-files-page.txt` 并退出；0.2.0 版的 `cf_wait_verify.py` 只要求出现任意一个，容易误判为已全部公开）；遇到 `Just a moment` 视为一次失败轮次，继续等。
 
 ## Common Pitfalls
 - [when 用 `x-api-key` + `api.curseforge.com` 上传] 403；作者 token 只认 legacy Upload API。
