@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    //? if modern {
+    "minecraft:gunpowder",
+    "minecraft:enchanted_book",
+    "minecraft:pink_dye"
+    //?} else {
+    {
+      "item": "minecraft:gunpowder"
+    },
+    {
+      "item": "minecraft:enchanted_book"
+    },
+    {
+      "item": "minecraft:pink_dye"
+    }
+    //?}
+  ],
+  "result": {
+    "id": "dokimobs:moe_dust",
+    "count": 4
+  }
+}

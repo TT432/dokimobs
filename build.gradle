@@ -25,20 +25,29 @@ sourceSets.main.resources.srcDirs = [stonecutterMainBase.map { it.dir('resources
 compileJava.dependsOn 'stonecutterGenerate'
 processResources.dependsOn 'stonecutterGenerate'
 
-// Stonecutter file handler 处理 dokimobs.mixins.json 的 //? 版本条件（见 stonecutter.gradle 注册 inherit java→json）。
-// comment-out 策略产出含注释的 json5，剥离为纯 JSON 供 Mixin 运行时解析。
+// Stonecutter file handler 处理 dokimobs.mixins.json 与带 //? 条件的数据 json 的版本条件。
+// comment-out 策略产出含注释的 json5；剥离注释行并重新序列化为纯 JSON 供运行时解析
+// （原有逻辑只处理 dokimobs.mixins.json，现对生成目录内所有 .json 生效）。
 def cleanGeneratedJson = tasks.register('cleanGeneratedJson') {
     dependsOn 'stonecutterGenerate'
+    def generatedResources = stonecutterMainBase.map { it.dir('resources') }
     doLast {
-        def file = stonecutterMainBase.get().dir('resources').file('dokimobs.mixins.json').asFile
-        if (!file.exists()) return
-        def text = file.text
-        text = text.replaceAll(/(?s)\/\*.*?\*\//, '')
-        text = text.replaceAll(/\/\/[^\r\n]*/, '')
-        text = text.replaceAll(/,(\s*[\]\}])/, '$1')
-        file.text = groovy.json.JsonOutput.prettyPrint(
-                groovy.json.JsonOutput.toJson(new groovy.json.JsonSlurper().parseText(text))
-        )
+        def root = generatedResources.get().asFile
+        if (!root.isDirectory()) return
+        root.eachFileRecurse { file ->
+            if (!file.isFile() || !file.name.endsWith('.json')) return
+            def text = file.text
+            // 先剥块注释（stonecutter 把失活分支包成 /* ... */），再按行剥 // 注释：
+            // 顺序反了会留下 `*/` 行尾的 `//?} else {` 残片。
+            // 只剥「整行注释」，避免误伤字符串里的 //（例如 URL）
+            def stripped = text.replaceAll(/(?s)\/\*.*?\*\//, '')
+                    .readLines().findAll { !it.trim().startsWith('//') }.join('\n')
+            if (stripped == text) return
+            stripped = stripped.replaceAll(/,(\s*[\]\}])/, '$1')
+            file.text = groovy.json.JsonOutput.prettyPrint(
+                    groovy.json.JsonOutput.toJson(new groovy.json.JsonSlurper().parseText(stripped))
+            )
+        }
     }
 }
 processResources.dependsOn cleanGeneratedJson

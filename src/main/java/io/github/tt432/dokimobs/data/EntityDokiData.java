@@ -81,10 +81,17 @@ public record EntityDokiData(
         }
 
         EntityDokiData rolled = new EntityDokiData(Math.random() < DokimobsConfig.CONFIG.spawnChance.get());
-        DataAttachmentHelper.setLocal(DokiData.DOKI.get(), entity, rolled);
-        // 附件无自动同步：滚出结果后立刻推给当前追踪者（新生成实体通常还没有追踪者，
-        // 真正的首次同步由 eyelib 的 StartTracking 整包下发兜底）。
-        DataAttachmentSyncRuntime.syncTrackedAndSelf(DokiData.DOKI.get(), entity, rolled);
+        setDoki(entity, rolled.doki());
         return rolled;
+    }
+
+    /**
+     * 写入并同步 doki 状态（服务端专用，例如萌化尘）。
+     * 附件无自动同步：写入后立刻推给当前追踪者，与 {@link #rollIfAbsent} 同一路径。
+     */
+    public static void setDoki(Entity entity, boolean doki) {
+        EntityDokiData data = new EntityDokiData(doki);
+        DataAttachmentHelper.setLocal(DokiData.DOKI.get(), entity, data);
+        DataAttachmentSyncRuntime.syncTrackedAndSelf(DokiData.DOKI.get(), entity, data);
     }
 }
