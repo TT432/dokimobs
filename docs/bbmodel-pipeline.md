@@ -66,6 +66,13 @@ assets/dokimobs/eyelib/animation_controllers/doki.json 迁移+新建控制器
   睡姿双倍过转。修复走数据侧（删直接条目、恢复原始剪辑值），不是 eyelib 管线 bug。
   排查法：枚举 entity description 的 `scripts.animate` 直接条目 ∩ 各控制器状态 animations，
   交集非空即双驱动。
+- **睡眠平移必须早于实体缩放（2026-11-04 村民睡姿根因）**：eyelib 在 `RenderLivingEvent.Pre`
+  之后复刻 vanilla 睡眠变换，`translate(-step*(eyeHeight(STANDING)-0.1))` 一旦放在
+  `client_entity.scripts.scale`（村民 0.8）或幼体 `scale(0.5)` 之后，平移量就被缩放系数乘小：
+  成年少移 **0.304** 格、幼体少移 **0.76** 格，表现为头睡不到枕头、身体沿床轴偏床尾（方向仍正确，
+  四床向一致）。vanilla `LivingEntityRenderer` 的顺序是 sleep translate → entity scale →
+  `setupRotations`。修复在 eyelib `ClientEntitySetup.setupEntityClientEntityData`（21.1.26），
+  不在 cospack/动画侧。验证凭据：同相机 doki vs 原版渲染截图（`versions/1.20.1/run/sleep_shots/`）。
 - **缺失引用安全降级**：控制器状态引用未映射的短名 → resolveAnimation 返回 null → 该状态视为播完，
   不崩溃不刷屏。
 
