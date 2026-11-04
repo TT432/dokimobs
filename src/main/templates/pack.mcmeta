@@ -4,7 +4,9 @@
       "text": "${mod_name} resources"
     },
     "pack_format": ${pack_format_number},
-    "min_format": ${pack_format_number},
-    "max_format": ${pack_format_number}
+    "supported_formats": {
+      "min_inclusive": ${pack_format_number},
+      "max_inclusive": 81
+    }
   }
 }
