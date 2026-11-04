@@ -3,6 +3,8 @@
     "description": {
       "text": "${mod_name} resources"
     },
-    "pack_format": ${pack_format_number}
+    "pack_format": ${pack_format_number},
+    "min_format": ${pack_format_number},
+    "max_format": ${pack_format_number}
   }
 }
