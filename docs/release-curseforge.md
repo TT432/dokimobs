@@ -41,7 +41,7 @@ cmd.exe /c gradlew.bat collectArtifacts --no-daemon --console=plain
   | 1.21.1 | `["Client","Server","1.21.1","NeoForge"]` |
   | 26.1.2 | `["Client","Server","26.1.2","NeoForge"]` |
 - 其余字段：`releaseType: "release"`、`changelogType: "markdown"`、`displayName` 用**带 `.jar` 的完整文件名**（与本项目历史文件展示一致，eyelib 用的是去扩展名）。
-- 现成脚本：`work/cf_upload_0.3.1.py`（最新一版，`--dry-run` 只打印 metadata；传节点名可只发指定节点），改顶部 `VERSION` / `CHANGELOG` / `IDS_OUT` 即可复用到下一版。changelog 从 `work/cf-<version>-changelog.md` 读取。
+- 现成脚本：`work/cf_upload_0.3.2.py`（最新一版，requests 实现，`--dry-run` 只打印 metadata；传节点名可只发指定节点），改顶部 `VERSION` / `CHANGELOG` / `IDS_OUT` 即可复用到下一版。changelog 从 `work/cf-<version>-changelog.md` 读取。
 - 上传结果（本次 0.2.0）：`1.20.1 → 9395289`、`1.21.1 → 9395290`、`26.1.2 → 9395292`。
 - 上传结果（本次 0.2.1）：`1.20.1 → 9406394`、`1.21.1 → 9406396`、`26.1.2 → 9406399`；脚本同版复制为 `work/cf_upload_0.2.1.py`、`work/cf_wait_verify_0.2.1.py`（后者要求三个文件名全部出现才退出）。2026-11-02 实测：20:40 上传完成 → 20:53 `files/all` 三个文件全部可见，各文件页 `R Release`、`Size 9.2 MB`、Loader 与 game version 正确、changelog 已渲染。
 - 上传结果（本次 0.3.0）：`1.20.1 → 9415180`、`1.21.1 → 9415182`、`26.1.2 → 9415184`；脚本复制为 `work/cf_upload_0.3.0.py`、`work/cf_wait_verify_0.3.0.py`。2026-11-03 实测：三个节点串行上传共 32 秒，全部 HTTP 200（`{"id": ...}`）；14:28 上传完成 → 14:29/14:33/14:37 轮询仍 `0/3` → 14:41 `files/all` 三个文件全部可见（约 13 分钟），各自 `Latest release`、`R Release`、`Size 9.2 MB`、Mod Loaders 与 game version 正确、changelog（含 `无序合成` 段）已渲染。前置依赖已实测：CF 的 `eyelib` 项目同时存在 `eyelib-21.1.24+1.20.1-forge` / `+1.21.1-neoforge` / `+26.1.2-neoforge`。
