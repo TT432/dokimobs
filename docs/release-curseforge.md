@@ -4,7 +4,7 @@
 依赖项 `eyelib` 是独立项目（`../qylEyelib`），它的发版见该项目 `.opencode/skills/eyelib-release/SKILL.md`；本文档只覆盖 dokimobs 侧。
 
 ## 版本与坐标
-- 版本唯一来源：`gradle.properties` 的 `mod_version`（当前 `0.3.4`）。
+- 版本唯一来源：`gradle.properties` 的 `mod_version`（当前 `0.3.5`）。
 - 节点：`stonecutter.properties.toml` 的 `1.20.1`（legacy Forge）、`1.21.1`、`26.1.2`（NeoForge）。
 - 产物名：`dokimobs-${mod_version}+${minecraft_version}-${forge|neoforge}.jar`。
 - CurseForge 项目：ID `1234919`，slug `dokimobs`。
@@ -41,7 +41,7 @@ cmd.exe /c gradlew.bat collectArtifacts --no-daemon --console=plain
   | 1.21.1 | `["Client","Server","1.21.1","NeoForge"]` |
   | 26.1.2 | `["Client","Server","26.1.2","NeoForge"]` |
 - 其余字段：`releaseType: "release"`、`changelogType: "markdown"`、`displayName` 用**带 `.jar` 的完整文件名**（与本项目历史文件展示一致，eyelib 用的是去扩展名）。
-- 现成脚本：`work/cf_upload_0.3.2.py`（最新一版，requests 实现，`--dry-run` 只打印 metadata；传节点名可只发指定节点），改顶部 `VERSION` / `CHANGELOG` / `IDS_OUT` 即可复用到下一版。changelog 从 `work/cf-<version>-changelog.md` 读取。
+- 现成脚本：`work/cf_upload_0.3.5.py`（最新一版，requests 实现，`--dry-run` 只打印 metadata；传节点名可只发指定节点），改顶部 `VERSION` / `CHANGELOG` / `IDS_OUT` 即可复用到下一版。changelog 从 `work/cf-<version>-changelog.md` 读取。
 - 上传结果（本次 0.2.0）：`1.20.1 → 9395289`、`1.21.1 → 9395290`、`26.1.2 → 9395292`。
 - 上传结果（本次 0.2.1）：`1.20.1 → 9406394`、`1.21.1 → 9406396`、`26.1.2 → 9406399`；脚本同版复制为 `work/cf_upload_0.2.1.py`、`work/cf_wait_verify_0.2.1.py`（后者要求三个文件名全部出现才退出）。2026-11-02 实测：20:40 上传完成 → 20:53 `files/all` 三个文件全部可见，各文件页 `R Release`、`Size 9.2 MB`、Loader 与 game version 正确、changelog 已渲染。
 - 上传结果（本次 0.3.0）：`1.20.1 → 9415180`、`1.21.1 → 9415182`、`26.1.2 → 9415184`；脚本复制为 `work/cf_upload_0.3.0.py`、`work/cf_wait_verify_0.3.0.py`。2026-11-03 实测：三个节点串行上传共 32 秒，全部 HTTP 200（`{"id": ...}`）；14:28 上传完成 → 14:29/14:33/14:37 轮询仍 `0/3` → 14:41 `files/all` 三个文件全部可见（约 13 分钟），各自 `Latest release`、`R Release`、`Size 9.2 MB`、Mod Loaders 与 game version 正确、changelog（含 `无序合成` 段）已渲染。前置依赖已实测：CF 的 `eyelib` 项目同时存在 `eyelib-21.1.24+1.20.1-forge` / `+1.21.1-neoforge` / `+26.1.2-neoforge`。
@@ -50,6 +50,8 @@ cmd.exe /c gradlew.bat collectArtifacts --no-daemon --console=plain
 - 上传结果（本次 0.3.3）：`1.20.1 → 9434950`、`1.21.1 → 9434955`、`26.1.2 → 9434959`；脚本为 `work/cf_upload_0.3.3.py`、`work/cf_wait_verify_0.3.3.py`、changelog `work/cf-0.3.3-changelog.md`。2026-11-04 23:35 上传完成。前置依赖：CF 的 `eyelib 21.1.27` 三节点 23:26 上传、23:35 已可见（`9434633` / `9434634` / `9434635`）。本次内容：26.1 实体材质改走 LIGHTMAP_ONLY（去掉逐面方向光造成的模型暗面闪烁）+ `pack.mcmeta` 改 `supported_formats`（26.1 不再整体拒绝资源包）。
 - 上传结果（本次 0.3.4）：`1.20.1 → 9450199`、`1.21.1 → 9450201`、`26.1.2 → 9450203`；脚本为 `work/cf_upload_0.3.4.py`、`work/cf_wait_verify_0.3.4.py`、changelog `work/cf-0.3.4-changelog.md`。2026-11-05 上传即 19 秒完成（三节点串行），14:54 上传完成 → 15:06 `files/all` 三个文件全部可见（约 12 分钟），各自 `Latest release`、`R Release`、版本/loader 正确；26.1.2 文件页 `Size 9.2 MB`、`Mod Loaders NeoForge`、`Type Release`、changelog 已渲染（`+` 在 File name 里显示为 `-`，与历史一致），1.20.1 / 1.21.1 文件页 Size 9.20 / 9.21 MB。前置依赖：CF 的 `eyelib 21.1.28` 三节点 14:41 上传、14:53 已可见（`9449975` / `9450004` / `9450034`）。本次内容：26.1.2 开光影后鸡/猪/牛/哞菇不显示（`entity` 不透明材质被 Iris 匹配到「永不通过」的顶点 alpha 测试），由 eyelib 21.1.28 按 `ShaderKey` 精确登记修复。
 - 本次 0.3.4 构建与产物校验：`clean assemble --no-build-cache` 三节点 `compileJava` 均执行、`BUILD SUCCESSFUL`；`collectArtifacts` 汇总 6 个 jar（dokimobs 三节点 + eyelib 21.1.28 三节点）；三个 dokimobs jar 与各自 `build/libs` 的 sha256 逐一相符；`mods.toml` / `neoforge.mods.toml` 的 `version = 0.3.4`、`eyelib versionRange = [21.1.28,)`、MC 范围 `[1.20.1,1.21)` / `[1.21.1,1.22)` / `[26.1.2,26.2)` 均正确。
+- 上传结果（本次 0.3.5）：`1.20.1 → 9453959`、`1.21.1 → 9453960`、`26.1.2 → 9453961`；脚本为 `work/cf_upload_0.3.5.py`、`work/cf_wait_verify_0.3.5.py`、changelog `work/cf-0.3.5-changelog.md`。2026-11-05 21:55 上传完成（三节点串行，17 秒）→ 21:59 / 22:03 轮询仍 `0/3` → 22:07 `files/all` 三个文件全部可见（约 13 分钟），各自 `Latest release`、`R`、game version 与 loader 正确、Size 9.2 MB；26.1.2 文件页 9453961 显示 `File ID 9453961`、`Type R Release`、`Size 9.2 MB`、`Mod Loaders NeoForge`、`Supported game versions 26.1.2`，`What's new` 已渲染完整 changelog（`+` 在 File name 里仍显示为 `-`）。**前置依赖未变**：CF 的 `eyelib 21.1.28` 三节点（`9449975` / `9450004` / `9450034`）已于 14:53 可见；发版前与用户确认真源是「eyelib 自 21.1.28 起无源码提交、线上已是最新」，因此本次**不发新 eyelib 版本**（不为空改动递增版本号）。本次内容：萌化尘对可萌化生物抢占交互优先级。
+- 本次 0.3.5 构建与产物校验：`clean assemble --no-build-cache` 三节点 `compileJava` 均执行（无 FROM-CACHE）、`BUILD SUCCESSFUL`；`collectArtifacts` 汇总 6 个 jar（dokimobs 三节点 + eyelib 21.1.28 三节点）；三个 dokimobs jar 与各自 `build/libs` 的 sha256 逐一相符（`259e598c…` / `6e0e7f4f…` / `70f144cb…`）；`mods.toml` / `neoforge.mods.toml` 的 `version = 0.3.5`、`eyelib versionRange = [21.1.28,)`、MC 范围 `[1.20.1,1.21)` / `[1.21.1,1.22)` / `[26.1.2,26.2)` 均正确；jar 内含 `io/github/tt432/dokimobs/item/MoeDustInteraction{,$Events}.class`（本次改动确实进包）。
 
 ## 步骤 4：验收
 - `https://r.jina.ai/https://www.curseforge.com/minecraft/mc-mods/dokimobs/files/all?page=1&pageSize=20&sortBy=dateCreated&sortOrder=desc&cb=<唯一串>`：出现新文件名、标 `Latest release`、Game Versions 与 Mod Loaders 正确、Size 与本地 jar 一致。
