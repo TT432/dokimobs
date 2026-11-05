@@ -84,8 +84,14 @@ public class TempVariantSetting {
      * doki 值是 dokimobs 受管实体的逐实例替换短路开关（false → 强制原版渲染）。
      * 仅受管类型允许写 eyelib 的 useBuiltInRenderSystem：该开关默认 true 且无人复位，
      * 对未受管实体写入 false 会永久旁路其他 eyelib mod 注册的模型替换。
+     * <p>
+     * 同时是「可萌化」的判定：萌化尘只在受管目标上抢占生物自身交互
+     * （见 {@code MoeDustInteraction}），未受管目标保持原版交互优先级。
+     * <p>
+     * 注意 cospack 部分来自客户端资源重载（{@link CosPackLoader}），
+     * 专用服务端拿不到客户端资源包里的 cospack；单人/局域网（同一 JVM）两端一致。
      */
-    static boolean isDokiManaged(Entity entity) {
+    public static boolean isDokiManaged(Entity entity) {
         String key = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
         return BUILT_IN_MANAGED.contains(key) || cosPackManaged.contains(key);
     }

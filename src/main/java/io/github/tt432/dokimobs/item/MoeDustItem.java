@@ -46,6 +46,18 @@ public class MoeDustItem extends Item {
             return InteractionResult.PASS;
         }
 
+        moeify(stack, player, target);
+        return InteractionResult.SUCCESS;
+    }
+
+    /**
+     * 真正的萌化写入：状态 + 动画 + 消耗。只在服务端调用。
+     * <p>
+     * 正常右击路径由 {@code MoeDustInteraction} 在 {@code Entity.interact} 之前抢占并调用这里；
+     * {@link #interactLivingEntity} 保留为兜底（其它 mod 直接调用物品 API、或目标不可萌化时
+     * 生物交互放行后走到链尾的情况）。
+     */
+    public static void moeify(ItemStack stack, Player player, LivingEntity target) {
         EntityDokiData.setDoki(target, true);
 
         if (player.level() instanceof ServerLevel serverLevel) {
@@ -59,6 +71,5 @@ public class MoeDustItem extends Item {
         //?} else {
         stack.consume(1, player);
         //?}
-        return InteractionResult.SUCCESS;
     }
 }
