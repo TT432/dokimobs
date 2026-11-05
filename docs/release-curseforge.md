@@ -4,7 +4,7 @@
 依赖项 `eyelib` 是独立项目（`../qylEyelib`），它的发版见该项目 `.opencode/skills/eyelib-release/SKILL.md`；本文档只覆盖 dokimobs 侧。
 
 ## 版本与坐标
-- 版本唯一来源：`gradle.properties` 的 `mod_version`（当前 `0.3.2`）。
+- 版本唯一来源：`gradle.properties` 的 `mod_version`（当前 `0.3.4`）。
 - 节点：`stonecutter.properties.toml` 的 `1.20.1`（legacy Forge）、`1.21.1`、`26.1.2`（NeoForge）。
 - 产物名：`dokimobs-${mod_version}+${minecraft_version}-${forge|neoforge}.jar`。
 - CurseForge 项目：ID `1234919`，slug `dokimobs`。
@@ -48,6 +48,8 @@ cmd.exe /c gradlew.bat collectArtifacts --no-daemon --console=plain
 - 上传结果（本次 0.3.1）：`1.20.1 → 9430937`、`1.21.1 → 9430940`、`26.1.2 → 9430942`；脚本为 `work/cf_upload_0.3.1.py`、`work/cf_wait_verify_0.3.1.py`。2026-11-04 实测：13:46 上传完成 → 13:50/13:54 轮询仍 `0/3` → 13:59 `files/all` 三个文件全部可见（约 12 分钟），各自 `Latest release`、`R Release`、`Size 9.2 MB`、Mod Loaders 与 game version 正确、changelog 已渲染。前置依赖：CF 的 `eyelib 21.1.25` 三节点已于 13:32 上传、13:45 全部可见（`9430864` / `9430866` / `9430868`）。
 - 上传结果（本次 0.3.2）：`1.20.1 → 9432169`、`1.21.1 → 9432171`、`26.1.2 → 9432172`；脚本为 `work/cf_upload_0.3.2.py`、`work/cf_wait_verify_0.3.2.py`。2026-11-04 实测：17:52 上传完成 → 17:56 / 18:01 轮询仍 `0/3` → 18:05 `files/all` 三个文件全部可见（约 13 分钟），各自 `Latest release`、`R Release`、`Size 9.2 MB`、Mod Loaders 与 game version 正确。前置依赖：CF 的 `eyelib 21.1.26` 三节点 17:32 上传、17:52 全部可见（`9432072` / `9432073` / `9432074`）。
 - 上传结果（本次 0.3.3）：`1.20.1 → 9434950`、`1.21.1 → 9434955`、`26.1.2 → 9434959`；脚本为 `work/cf_upload_0.3.3.py`、`work/cf_wait_verify_0.3.3.py`、changelog `work/cf-0.3.3-changelog.md`。2026-11-04 23:35 上传完成。前置依赖：CF 的 `eyelib 21.1.27` 三节点 23:26 上传、23:35 已可见（`9434633` / `9434634` / `9434635`）。本次内容：26.1 实体材质改走 LIGHTMAP_ONLY（去掉逐面方向光造成的模型暗面闪烁）+ `pack.mcmeta` 改 `supported_formats`（26.1 不再整体拒绝资源包）。
+- 上传结果（本次 0.3.4）：`1.20.1 → 9450199`、`1.21.1 → 9450201`、`26.1.2 → 9450203`；脚本为 `work/cf_upload_0.3.4.py`、`work/cf_wait_verify_0.3.4.py`、changelog `work/cf-0.3.4-changelog.md`。2026-11-05 上传即 19 秒完成（三节点串行），14:54 上传完成 → 15:06 `files/all` 三个文件全部可见（约 12 分钟），各自 `Latest release`、`R Release`、版本/loader 正确；26.1.2 文件页 `Size 9.2 MB`、`Mod Loaders NeoForge`、`Type Release`、changelog 已渲染（`+` 在 File name 里显示为 `-`，与历史一致），1.20.1 / 1.21.1 文件页 Size 9.20 / 9.21 MB。前置依赖：CF 的 `eyelib 21.1.28` 三节点 14:41 上传、14:53 已可见（`9449975` / `9450004` / `9450034`）。本次内容：26.1.2 开光影后鸡/猪/牛/哞菇不显示（`entity` 不透明材质被 Iris 匹配到「永不通过」的顶点 alpha 测试），由 eyelib 21.1.28 按 `ShaderKey` 精确登记修复。
+- 本次 0.3.4 构建与产物校验：`clean assemble --no-build-cache` 三节点 `compileJava` 均执行、`BUILD SUCCESSFUL`；`collectArtifacts` 汇总 6 个 jar（dokimobs 三节点 + eyelib 21.1.28 三节点）；三个 dokimobs jar 与各自 `build/libs` 的 sha256 逐一相符；`mods.toml` / `neoforge.mods.toml` 的 `version = 0.3.4`、`eyelib versionRange = [21.1.28,)`、MC 范围 `[1.20.1,1.21)` / `[1.21.1,1.22)` / `[26.1.2,26.2)` 均正确。
 
 ## 步骤 4：验收
 - `https://r.jina.ai/https://www.curseforge.com/minecraft/mc-mods/dokimobs/files/all?page=1&pageSize=20&sortBy=dateCreated&sortOrder=desc&cb=<唯一串>`：出现新文件名、标 `Latest release`、Game Versions 与 Mod Loaders 正确、Size 与本地 jar 一致。
