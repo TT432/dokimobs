@@ -286,3 +286,51 @@ animation controller。已用脚本对照 HEAD 逐项确认 `models`/`animation.
 - `minecraft.reloadResourcePacks()` 对 cospack 的**动画剪辑**生效（实测改 walking 后同一实体最低点立即变化），
   换包试参数不必重启客户端；此前记录的「控制器定义不重载」结论不适用于剪辑数据。
 - 截图 `Screenshot.grab(gameDirectory, name, mainRenderTarget, c->{})` 落到 `run/screenshots/<name>`（无扩展名）。
+
+## 2026-11-06 幻翼翅膀「z 冲突闪烁」与 26.1.2 羊驼表情（复现失败，结论与口径）
+
+**用户报告**：① 幻翼在特定角度下翅膀出现类似 z 冲突的闪烁；② 26.1.2 的羊驼没有「闭眼+小嘴」那个表情，
+怀疑版本间资源不对称。
+
+### 复现结果：两者均未复现
+
+- 幻翼：1.20.1 / 1.21.1 / 26.1.2 三个客户端都实机绕拍（8 方位 × 1.0~2.4 格 + 俯仰 0/15/30/45 + 近距 0.6~1.2 格，
+  合计 100+ 张）。全部版本翅膀膜面稳定，无条纹/半透明抖动。
+- 羊驼：同 `Variant:0..3`、同机位、同 10 帧序列对比 1.21.1 vs 26.1.2：**脸部几何与表情层完全一致**
+  （右眼深色眉块、浅蓝眼白/瞳孔、眼睑遮盖相位都相同），差异只有整体亮度/对比——26.1 实体走
+  `LIGHTMAP_ONLY`（ADR-0040），不做逐面方向光，所以更亮更平。
+
+### 资源不对称结论：不成立（dokimobs 侧）
+
+- 三节点共用同一份 `src/main/resources`（stonecutter 生成同一份 `build/resources`），**没有 per-version 资源覆盖**；
+  `pack.cospack`、`eyelib/entity|render_controllers|animation_controllers` 全版本同一份。
+- 能造成版本差异的只剩 eyelib 的 per-version 构件与 26.1 渲染管线（LIGHTMAP_ONLY / PSO / 两阶段提交）。
+
+### 数据侧发现（可复用的判定结论）
+
+- 幻翼 `geometry.mdsj_phantom` 里唯一的零厚度双面四边形：`leftwing3.cube1` / `rightwing3.cube0`
+  （面积各 1.875 格²，两面**顶点完全相同**、法线相反、UV 不同）。其中**正面 UV（u 0.121~0.238、v 0~0.0625）
+  落在 alpha 全 0 区域**（整块贴图 region 全透明），即该面绘制不出任何像素。
+  A/B：删掉这两个空面后同机位像素差只落在 wingtip/动画边缘，**无视觉变化** ⇒ 不是可见闪烁源。
+- `phantom.png` 全局 alpha 只有 0 / 255（半透明像素仅 5 个）⇒ 该实体用 `translucent` 与 `cutout`
+  **语义等价**，blending 只可能来自 mipmap（缩小采样把 0/255 平均成中间值）。
+- 羊驼脸部是**亚毫米层叠**：`lefteyesbase` 4 层 z 间隔 0.0003~0.003 格、`mouth` 7 层、
+  `lefteyebrownormal`/`lefteyebrowanger` 靠 z±0.0625 切换（`animation.mdsj_llama.shoot_anger`）。
+  按 24-bit 深度、near=0.05 估算，2 格处精度 ~5e-6 格、30 格处 ~1e-3 格 ⇒ **近距离不会 z 冲突**，
+  不能用「亚毫米层叠」解释近距离表情丢失。
+
+### 排查口径坑（本次新增）
+
+1. **粒子/天气会污染帧差分析**：幻翼自身粒子 + 下雨会在全屏产生竖条纹并让相邻帧差异暴涨
+   （无雨 mean|Δ|=1.6 / >25 像素 8k，有雨 mean=8~11 / >25 像素 43k~82k）。做「闪烁」判定前必须先
+   `weather clear` + `gamerule doWeatherCycle false`，并确认 `level.isRaining()==false`。
+2. **截图 API 三版本不同**（都在 render 线程的 /eval 里可用）：
+   - 1.20.1 / 1.21.1：`Screenshot.takeScreenshot(RenderTarget)` 返回 `NativeImage`，自己 `writeToFile`；
+   - 26.1.2：只有 `takeScreenshot(RenderTarget, Consumer<NativeImage>)`，回调里 `writeToFile`，
+     异步落盘，读文件前需等 ~200ms。
+3. **相机朝向公式**：`yaw = atan2(-dx, dz)`（度）、`pitch = atan2(eyeY - targetY, horizDist)`（正值向下）；
+   `player.setPos(x, eyeY-1.62, z)`。曾把 yaw 写成 `atan2(dx, dz)` 导致镜头对着反方向、
+   空拍一整轮还以为实体隐形。
+4. **`mcmcp_build(<version>)` 后 `clientRunVmArgs.txt` 会被重写**：临时加的 `-D` 开关（如
+   `-Deyelib.gpuSkinning=false`）必须重新追加；GPU 蒙皮开关 A/B 实测对幻翼翅膀外观无差异
+   （1.20.1 开/关同机位同结果），可排除 GPU 蒙皮。
