@@ -4,7 +4,7 @@
 依赖项 `eyelib` 是独立项目（`../qylEyelib`），它的发版见该项目 `.opencode/skills/eyelib-release/SKILL.md`；本文档只覆盖 dokimobs 侧。
 
 ## 版本与坐标
-- 版本唯一来源：`gradle.properties` 的 `mod_version`（当前 `0.3.7`）。
+- 版本唯一来源：`gradle.properties` 的 `mod_version`（当前 `0.3.9`）。
 - 节点：`stonecutter.properties.toml` 的 `1.20.1`（legacy Forge）、`1.21.1`、`26.1.2`（NeoForge）。
 - 产物名：`dokimobs-${mod_version}+${minecraft_version}-${forge|neoforge}.jar`。
 - CurseForge 项目：ID `1234919`，slug `dokimobs`。
@@ -34,6 +34,7 @@ cmd.exe /c gradlew.bat collectArtifacts --no-daemon --console=plain
 ## 步骤 3：上传（legacy Upload API）
 - 端点：`POST https://www.curseforge.com/api/projects/1234919/upload-file`，头 `X-Api-Token: <CURSE_TOKEN>`，multipart 字段 `metadata`（JSON 字符串）与 `file`（jar）。
 - 返回 `{"id": <fileId>}` 即上传成功；同一节点重复上传会产生重复文件，**不要用真实版本重试**，失败先看 HTTP 码。
+- 2026-11-06 实测：Python/requests 直连 `upload-file` 被 Cloudflare 重置（`ConnectionResetError(10054)`），`GET /api/game/versions` 也可能 403；此时不要换版本重试，改用浏览器辅助上传（见本节末）。
 - metadata 用 `gameVersionNames`（比 id 稳，某些 MC 版本有多个重复 id）：
   | 节点 | gameVersionNames |
   | --- | --- |
@@ -58,11 +59,37 @@ cmd.exe /c gradlew.bat collectArtifacts --no-daemon --console=plain
 
 - 上传结果（本次 0.3.7）：`1.20.1 → 9472929`、`1.21.1 → 9472947`、`26.1.2 → 9472962`；脚本 `work/cf_upload_0.3.7.py`、`work/cf_wait_verify_0.3.7.py`、changelog `work/cf-0.3.7-changelog.md`。三节点串行上传共 253 秒；19:56 上传完成 → 20:02 `files/all` 三个文件全部可见（约 10 分钟），各自 `Latest release`、R、game version 与 loader 正确；26.1.2 文件页 `9472962` 的 `What's new` 已渲染完整 changelog（含「透明材质不再遮挡水面」段）。**前置依赖**：CF 的 eyelib 21.1.30 三节点（`9472600` / `9472601` / `9472604`）19:31 上传、19:45 `files/all` 可见（约 14 分钟）。本次内容：依赖 eyelib 21.1.30（实体 pass 状态统一：透明 texel 不再写深度，幻翼/监守者透明片后面能正常看到水；多层半透明深度口径统一，消除近距离层序翻转造成的「z 冲突」闪烁；`<26.1` 补齐 entity_nocull 的背面剔除与 ADDITIVE 混合）。
 - 本次 0.3.7 构建与产物校验：`clean assemble --no-daemon --no-build-cache` 三节点 `compileJava` 均执行（无 FROM-CACHE）、`BUILD SUCCESSFUL`；`collectArtifacts` 汇总 6 个 jar（dokimobs 0.3.7 三节点 + eyelib 21.1.30 三节点）；三个 dokimobs jar 与各自 `build/libs` 的 sha256 逐一相符（`7e4b11a7…` / `3fc5f6ad…` / `39460962…`）；`mods.toml` / `neoforge.mods.toml` 的 `version = 0.3.7`、`eyelib versionRange = [21.1.30,)`、MC 范围 `[1.20.1, 1.21)` / `[1.21.1, 1.22)` / `[26.1.2, 26.2)` 均正确。
+- 上传结果（本次 0.3.8）：`1.20.1 → 9474406`、`1.21.1 → 9474408`、`26.1.2 → 9474410`；脚本 `work/cf_upload_0.3.8.py`、`work/cf_wait_verify_0.3.8.py`、changelog `work/cf-0.3.8-changelog.md`。2026-11-06 14:10Z 浏览器辅助上传完成（Python 直连被 Cloudflare 重置，见下）；14:15:59Z `files/all` 三个文件全部可见，各自 `Latest release`、`R`、game version 与 loader 正确；三个文件页均显示 `File ID`（9474406 / 9474408 / 9474410）、`Type R Release`、`Size 9.2 MB`、正确 Mod Loader 与 `Supported game versions`，`What's new` 已渲染完整 changelog。公开 API 的 `fileLength` 精确匹配本地 jar：9651527 / 9664582 / 9666195 B。**前置依赖**：CF 的 eyelib 21.1.31 三节点（`9474334` / `9474338` / `9474341`）于 14:03Z 浏览器辅助上传、14:09:35Z 可见（约 6 分钟），文件页 10.6 / 9.9 / 9.8 MB，Forge/NeoForge、game version 与 `What's new` 正确。
+- 本次 0.3.8 构建与产物校验：`clean assemble --no-build-cache` 三节点 `compileJava` 均执行（无 FROM-CACHE）、`BUILD SUCCESSFUL`；`collectArtifacts` 汇总 6 个 jar（dokimobs 0.3.8 三节点 + eyelib 21.1.31 三节点）；三个 dokimobs jar 与 `work/cf-0.3.8-preclean.sha256` / `postclean.sha256` 逐一相符（`f6b0ee86…` / `17a0b0c6…` / `c0eb59bb…`）；`mods.toml` / `neoforge.mods.toml` 的 `version = 0.3.8`、`eyelib versionRange = [21.1.31,)`、MC 范围 `[1.20.1, 1.21)` / `[1.21.1, 1.22)` / `[26.1.2, 26.2)` 均正确；三个 eyelib jar 均含 `io/github/tt432/eyelib/client/render/CarriedBlockRenderer.class` 及新端口。
+- 上传结果（本次 0.3.9）：`1.20.1 → 9474879`、`1.21.1 → 9474881`、`26.1.2 → 9474882`；脚本 `work/cf_upload_0.3.9.py`、`work/cf_wait_verify_0.3.9.py`、changelog `work/cf-0.3.9-changelog.md`。2026-11-06 14:52Z 浏览器辅助上传（本机静态服务 18777 → 页面内 fetch legacy Upload API，三节点均 HTTP 200）。**headless 受管浏览器卡在 Cloudflare `Just a moment`（15 分钟未过），换 `headed: true` 立即通过**——SOP 的"受管浏览器"必须带 `headed`，这是与 0.3.8 记录的补充。**前置依赖**：CF 的 eyelib 21.1.31 三节点（`9474334` / `9474338` / `9474341`）在 0.3.8 发版时已可见，本次不发新 eyelib。本次内容：蜜蜂背面看不到翅膀（翅膀骨骼改 `doki_bee_alphatest_nocull` 双面渲染）。
+- 本次 0.3.9 构建与产物校验：`clean assemble --no-daemon --console=plain --no-build-cache` 三节点 `compileJava` 均执行（无 FROM-CACHE）、`BUILD SUCCESSFUL`；`collectArtifacts` 汇总 6 个 jar（dokimobs 0.3.9 三节点 + eyelib 21.1.31 三节点）；三个 dokimobs jar 与各自 `build/libs` 的 sha256 逐一相符（`4126f176…` / `4e6abb74…` / `3b2807cf…`）；`mods.toml` / `neoforge.mods.toml` 的 `version = 0.3.9`、`eyelib versionRange = [21.1.31,)`、MC 范围 `[1.20.1, 1.21)` / `[1.21.1, 1.22)` / `[26.1.2, 26.2)` 均正确；jar 内 `pack.cospack` 含 `"rightwing*"` 材质槽、`doki.material` 含 `doki_bee_alphatest_nocull`（本次改动确实进包）。公开验收：15:05:13Z `files/all` 三个文件名全部出现且各自标 `Latest release`（轮询脚本退出码 0，快照 `work/cf-0.3.9-files-page.txt`，约 13 分钟）；三个文件页 `9474879` / `9474881` / `9474882` 的 `File ID`、`Type R Release`、`Size 9.2 MB`、`Mod Loaders`（Forge / NeoForge / NeoForge）、`Supported game versions`（1.20.1 / 1.21.1 / 26.1.2）与 `What's new`（完整中文 changelog）均正确。本轮**未能**用公开 API 做 `fileLength` 精确核对：CF 对非浏览器请求该 API 返回 `Just a moment`（r.jina.ai 与页面内 fetch 均被拦），只核到页面 Size 量级。
 - **项目描述**：CurseForge 公开 API 只有 `GET /v1/mods/{modId}/description`（读），没有写入端点；作者 Upload API 也没有描述字段 ⇒ 描述只能由作者在网页后台编辑。描述正文的仓库副本是 `docs/curseforge-description.md`（当前实体表 27 个模型），改动后从该文件整段复制到 CurseForge 后台即可。
+
+### 2026-11-06：Cloudflare 拦截 → 浏览器辅助上传
+- 背景：`POST /api/projects/{id}/upload-file` 从 Python/requests 直连（含代理、UA、浏览器 cookie）返回 403 / `ConnectionResetError(10054)`；CF 页面本身可通过浏览器访问，且浏览器内 `fetch` 携带 `X-Api-Token` 能完成上传。
+- 做法：
+  1. 本地临时起只读静态服务（`127.0.0.1:18777`），服务 `artifacts/`，响应带 `Access-Control-Allow-Origin: *`，并从 `%USERPROFILE%/.gradle/gradle.properties` 的 `CURSE_TOKEN` 提供 `/token`；用完即删，不要长期运行。
+  2. 用受管浏览器打开 `https://www.curseforge.com/minecraft/mc-mods/<slug>/files/all`，确认已通过 Cloudflare（页面不是 `Just a moment`）。
+  3. 在该页面上下文执行 `page.evaluate`：先从本地服务取 jar → `blob()`，再组 `FormData`（`metadata` JSON 字符串 + `file`）POST 到 legacy Upload API，头 `X-Api-Token`。token 由 eval 传入或从本地 `/token` 取，**不要打印到日志**。
+  4. 返回 `{"id":...}` 后**不要重传**；用页面内 `fetch` 调公开 API（URL 加唯一 `cb` 绕缓存）轮询 `id` / `status` / `fileLength`，或用 `r.jina.ai` 读 `files/all`。
+- 最小页面代码：
+  ```js
+  const jr = await fetch("http://127.0.0.1:18777/" + encodeURIComponent(fileName));
+  const fd = new FormData();
+  fd.append("metadata", JSON.stringify(metadata));
+  fd.append("file", await jr.blob(), fileName);
+  const resp = await fetch(`https://www.curseforge.com/api/projects/${projectId}/upload-file`, {
+    method: "POST", headers: {"X-Api-Token": token}, body: fd
+  });
+  // resp.json() -> {"id": ...}
+  ```
+- 2026-11-06 实测时间线：eyelib 21.1.31 14:03Z 上传 → 14:09:35Z 公开；dokimobs 0.3.8 14:10Z 上传 → 14:15:59Z 公开。公开 API `status=4`、`fileLength` 与本地 jar 字节数完全一致；公开前公共 API 查不到该 ID 是正常的，**不要据此判断上传失败**。
+- 清理：用完关闭本地服务/浏览器 tab，删除临时静态服务脚本与 `work/cf_browser_session.json`（含 cookie）等临时载体。
 
 ## 步骤 4：验收
 - `https://r.jina.ai/https://www.curseforge.com/minecraft/mc-mods/dokimobs/files/all?page=1&pageSize=20&sortBy=dateCreated&sortOrder=desc&cb=<唯一串>`：出现新文件名、标 `Latest release`、Game Versions 与 Mod Loaders 正确、Size 与本地 jar 一致。
 - 文件详情页 `.../files/<fileId>`：确认 `File ID`、`Type R Release`、`Size`、`Mod Loaders`、`Supported game versions` 与预期节点一致，且 `What's new` 段渲染出 markdown changelog。
+- 页面内 `fetch` 公开 API：`GET /api/v1/mods/{projectId}/files?pageIndex=0&pageSize=50&sort=dateCreated&sortOrder=desc&cb=<唯一串>`；`status=4` 且 `fileLength` 与本地 jar 字节数一致可作精确核对。`displayName` 保留 `+`，`fileName` 把 `+` 显示为 `-`。
 - 上传接口返回 200 只证明「已受理」，不证明已公开——**以 `files/all` 为准**。
 - 2026-11-01 实测时间线（0.2.0）：22:11 上传完成 → 22:31 `files/all` 出现第 1 个文件（1.21.1）→ 22:44 三个文件全部出现且各自标 `Latest release`；详情页在 22:50 左右可读。即「分钟级到约半小时」，不必重传。
 - Size 只到 0.1 MB 精度（本地 9636031 B 显示 `9.2 MB`），可作量级核对；**无法用哈希核对已上传字节**：`https://mediafilez.forgecdn.net/files/<id/1000>/<id%1000>/<文件名>` 与 `.../download/<fileId>` 无签名直连一律 403。
@@ -72,6 +99,8 @@ cmd.exe /c gradlew.bat collectArtifacts --no-daemon --console=plain
 - [when 用 `x-api-key` + `api.curseforge.com` 上传] 403；作者 token 只认 legacy Upload API。
 - [when 在 `www.curseforge.com` 取 `/api/game/versions`] 返回的是别的游戏版本；必须用 `minecraft.curseforge.com/api/game/versions`。
 - [when 直接 curl / 无头浏览器读 CF 页面] 被 Cloudflare 拦成 403 或 `Just a moment`；一律用 `https://r.jina.ai/<url>` 读取，URL 上加唯一 query 参数绕缓存。
+- [when 2026-11-06 起 Python/requests 上传返回 403 / `ConnectionResetError(10054)`] Cloudflare 在拦非浏览器客户端；不要换版本重试，改用浏览器辅助上传（见步骤 3 末）。
+- [when 上传返回 `{"id":...}` 但 `files/all` 暂时没有] 文件已受理但尚未公开；等待约 6–15 分钟并轮询，重复上传会产生重复文件。2026-11-06 实测 eyelib 21.1.31 约 6 分钟、dokimobs 0.3.8 约 6 分钟公开。
 - [when 只跑 `clean assemble` 就宣称「当前源码可构建」] Gradle build cache 会命中 `compileJava FROM-CACHE`；必须 `--no-build-cache`，并用 jar 哈希与 `artifacts/` 比对来证明产物与工作树同源（对应 2026-10-28 交付过度的反馈）。
 - [when 想删 CF 上的错误文件] 无可用删除 API；只能作者在网页文件页手动删除。
 - [when 想用第三方镜像 `https://api.cfwidget.com/minecraft/mc-mods/dokimobs` 验收] 它返回 JSON 且不被 Cloudflare 拦，但索引明显滞后（0.2.0 已公开 40 分钟后仍只列 11 个旧文件），只能作旁证，不能当验收依据。
