@@ -363,3 +363,22 @@ animation controller。已用脚本对照 HEAD 逐项确认 `models`/`animation.
 排查口径教训：**版本对照必须覆盖「触发态」**，只在平静态对比会得出「两版本一致」的错误结论；
 且模型里的 `expression_*` / `mouth` 这类埋在头部内部（z 在头骨面之后）的部件，天然只在被
 动画推出来时可见——看不到表情时先查驱动它的 molang 查询，再怀疑深度/资源。
+
+### 2026-11-06 再查：幻翼闪烁仍未复现，但发现 26.1 专属「半透明不写深度」差异（未修，待复现确认）
+
+`qylEyelib` 的 `BrRenderTypeFactory.entityPassState`（26.1 实体通道）对 BLEND 材质返回
+`WriteMask(true, !blend)`，即**半透明不写深度**，注释写「与 vanilla entityTranslucent 一致」。
+但 26.1 vanilla `RenderType.ENTITY_TRANSLUCENT`（`work/allsrc/.../RenderType.java:63-64`）
+只设 `TRANSLUCENT_TRANSPARENCY` + `NO_CULL`，**没有** `setWriteMaskState` ⇒ 走默认
+`COLOR_DEPTH_WRITE`（写深度）；显式不写深度的是 `ENTITY_TRANSLUCENT_EMISSIVE`（`:67-68` 用 `COLOR_WRITE`）。
+材质驱动路径 `BrRenderStateFactory.compute` 也按 Bedrock `DisableDepthWrite` 取掩码（默认写深度），
+与 entityPassState 的自造规则不一致。
+
+影响面：`translucent` 材质的 doki 实体（幻翼翅膀就是 `materials.default = translucent`）在 26.1
+会比 1.20.1/1.21.1 少一层深度遮挡——自身背面与身后几何会透出来（鬼影），且随姿势/视角改变，
+观感接近「z 冲突闪烁」。**未修改**：一方面本机三版本实机绕拍仍未复现用户视频里的条纹，
+二来改这条会同时影响所有半透明部件（需要逐部件回归），按「未定位根因禁止提交修复」不动。
+
+复现确认办法（下一轮直接用）：在 26.1.2 与 1.21.1 各摆同一场景（实体背后放彩色墙面），
+对比「同一姿势、同一机位、去掉背景墙前后」翼膜像素是否随背景变色——不变即写深度正常，
+变色即 26.1 漏写深度。注意要把墙与实体摆到同一亮区（夜间需 `night_vision`），否则暗部数值不可比。
