@@ -302,7 +302,7 @@ animation controller。已用脚本对照 HEAD 逐项确认 `models`/`animation.
 
 ### 资源不对称结论：不成立（dokimobs 侧）
 
-- 三节点共用同一份 `src/main/resources`（stonecutter 生成同一份 `build/resources`），**没有 per-version 资源覆盖**；
+- 三节点共用同一份 `src/main/resources`（stonecutter 生成同一份 `build/resources`），**没有 per-version 资源覆盖**；（单元：资源布局核对 / 本节结论 / `git ls-files` 仅一份资源树 + `versions/*` 只有构建产物）
   `pack.cospack`、`eyelib/entity|render_controllers|animation_controllers` 全版本同一份。
 - 能造成版本差异的只剩 eyelib 的 per-version 构件与 26.1 渲染管线（LIGHTMAP_ONLY / PSO / 两阶段提交）。
 
@@ -364,21 +364,64 @@ animation controller。已用脚本对照 HEAD 逐项确认 `models`/`animation.
 且模型里的 `expression_*` / `mouth` 这类埋在头部内部（z 在头骨面之后）的部件，天然只在被
 动画推出来时可见——看不到表情时先查驱动它的 molang 查询，再怀疑深度/资源。
 
-### 2026-11-06 再查：幻翼闪烁仍未复现，但发现 26.1 专属「半透明不写深度」差异（未修，待复现确认）
+### 2026-11-06 复检与根治：实体 pass 状态三套构造导致「透明 texel 写深度」（qylEyelib ADR-0042）
 
-`qylEyelib` 的 `BrRenderTypeFactory.entityPassState`（26.1 实体通道）对 BLEND 材质返回
-`WriteMask(true, !blend)`，即**半透明不写深度**，注释写「与 vanilla entityTranslucent 一致」。
-但 26.1 vanilla `RenderType.ENTITY_TRANSLUCENT`（`work/allsrc/.../RenderType.java:63-64`）
-只设 `TRANSLUCENT_TRANSPARENCY` + `NO_CULL`，**没有** `setWriteMaskState` ⇒ 走默认
-`COLOR_DEPTH_WRITE`（写深度）；显式不写深度的是 `ENTITY_TRANSLUCENT_EMISSIVE`（`:67-68` 用 `COLOR_WRITE`）。
-材质驱动路径 `BrRenderStateFactory.compute` 也按 Bedrock `DisableDepthWrite` 取掩码（默认写深度），
-与 entityPassState 的自造规则不一致。
+上一条把差异归为「26.1 半透明不写深度」，方向对但归因不完整。用户「幻翼近距离 z 冲突式闪烁」
+与「监守者/幻翼的透明片挡掉水面」在 21.1.29 上仍可复现的**共同**机理是：**实体 pass 的 alpha test
+与深度写没有单一权威，三套构造函数各自重建**：
 
-影响面：`translucent` 材质的 doki 实体（幻翼翅膀就是 `materials.default = translucent`）在 26.1
-会比 1.20.1/1.21.1 少一层深度遮挡——自身背面与身后几何会透出来（鬼影），且随姿势/视角改变，
-观感接近「z 冲突闪烁」。**未修改**：一方面本机三版本实机绕拍仍未复现用户视频里的条纹，
-二来改这条会同时影响所有半透明部件（需要逐部件回归），按「未定位根因禁止提交修复」不动。
+| 构造点 | alpha test | 深度写 | cull |
+|---|---|---|---|
+| `<26.1` `RenderPassAdapter` 的 vanilla 类型表 | 由 vanilla 着色器隐式提供（cutout/translucent/emissive 都 discard 0.1；仅 `entitySolid` 不 discard） | vanilla 默认 | **SOLID/EMISSIVE/ADDITIVE 分支丢弃 `disableCulling`** |
+| `>=26.1` `entityPassState`（回退 RenderType） | 只在 CUTOUT 类加 `ALPHA_CUTOUT` | 自造 `!blend`（半透明不写） | 正确 |
+| 材质驱动 `custom`/`buildPipeline` | 同上（只在 CUTOUT 类加） | Bedrock `DisableDepthWrite`（默认写） | 正确 |
 
-复现确认办法（下一轮直接用）：在 26.1.2 与 1.21.1 各摆同一场景（实体背后放彩色墙面），
-对比「同一姿势、同一机位、去掉背景墙前后」翼膜像素是否随背景变色——不变即写深度正常，
-变色即 26.1 漏写深度。注意要把墙与实体摆到同一亮区（夜间需 `night_vision`），否则暗部数值不可比。
+26.1 的实体着色器是统一的 `core/entity.fsh`，**只有 `#ifdef ALPHA_CUTOUT` 才 discard**
+（`work/mc261src` 抽取自 `minecraft-patched-26.1.2.78-sources.jar`）。而 vanilla 26.1 的
+`RenderPipelines` 对 `ENTITY_CUTOUT(_CULL)`、`ENTITY_TRANSLUCENT(_CULL)`、`ENTITY_TRANSLUCENT_EMISSIVE`、
+`ARMOR_TRANSLUCENT`、`BREEZE_WIND`、`ENERGY_SWIRL` **全部**定义 `ALPHA_CUTOUT=0.1`，只有
+`ENTITY_SOLID`/`GLINT` 不定义；深度写方面 `ENTITY_TRANSLUCENT` 是 DEFAULT（写），
+`ENTITY_TRANSLUCENT_EMISSIVE` 显式 `DepthStencilState(LESS_THAN_OR_EQUAL, false)`（不写）。
+
+于 26.1 的材质驱动路径（`lighting=LIGHTMAP_ONLY` 使**所有**实体材质都走 custom pipeline，
+ADR-0040）上表现为：**BLEND / TRANSLUCENT_EMISSIVE 的 pass 既没有 `ALPHA_CUTOUT` 又按 Bedrock
+默认写深度**。alpha≈0 的 texel 照常光栅化并写深度；随后 `post/transparency.fsh` 按 main/translucent
+各层**深度**做逐像素排序混合（`try_insert`：深度大的先混），main 层因此被当成「比水近」→
+**透过透明区域看到的是天空而不是水**。同一模型多层半透明片之间则一层写、一层不写深度，
+叠上 `sortOnUpload` 的顶点排序键不是相机距离 ⇒ 层间遮挡随姿态/视角翻转，观感即「z 冲突式闪烁」。
+
+**静态审计证据**（渲染器真实双线性 UV 采样 cospack 贴图；脚本见 qylEyelib
+`scripts/alpha_pass_audit.py`）：
+
+| 实体 | 材质 | 通道 | 透明度 texel 占比（alpha≈0） | 典型骨骼 |
+|---|---|---|---|---|
+| minecraft:warden | `doki_warden_glow_nocull` | BLEND+EMISSIVE，写深度 | 0.95~1.00 | `groundwave_*`/`wind_*`/`light_*`/`ghost*` |
+| minecraft:phantom | `translucent` | BLEND，写深度 | 0.67~0.83 | `mouth_*`/`leyesbase`/`upbody` |
+| minecraft:creeper | `charged_creeper` | ADDITIVE，写深度 | 0.17 | 全身外壳 |
+
+**修复**（qylEyelib 21.1.30，ADR-0042）：`BrRenderTypeFactory` 新增 `PassKind{ENTITY,PARTICLE}`
+与两条 policy——
+`alphaTest(state, kind)`（实体通道：除 OPAQUE/EMISSIVE/GLINT 外一律 0.1；粒子通道仅材质显式
+`ALPHA_TEST`）与 `effectiveWriteDepth(state, kind)`（实体 `TRANSLUCENT_EMISSIVE` 不写深度，其余尊重
+`DisableDepthWrite`）。26.1 pipeline 由 policy 决定 `ALPHA_CUTOUT`；`<26.1` 的 canonical→vanilla
+映射改成**全组合**（vanilla 无法精确表达的组合走同一份 custom 构造），补齐丢失的 cull/blend。
+渲染状态缓存键与 pipeline location 都带上 `PassKind`。ADR-0042 §5 显式登记了本轮**未改**的
+跨实体 flush 时序问题（`flush()` 逐组件 vs vanilla 两段 flush）及修法。
+
+**验证**：
+
+- 三节点 `compileJava` 通过；新增 `BrRenderTypePassPolicyTest`（entity/particle 的 alpha test 与
+  深度写表）三节点全绿；`material.*`/`bridge.material.*` 测试三节点只剩 HEAD 既有基线失败
+  （26.1.2 的 `BrRenderStateLightingModelTest`、`BrRenderStateSpecTest`，见滞留反馈）。
+- 26.1.2 实机（`/eval` 读真实 RenderPipeline）：
+  - 修复前（21.1.29）幻翼翼 pass：`RendererPass[TRANSLUCENT, cull=false]`，
+    `ShaderDefines[values={}, flags=[NO_CARDINAL_LIGHTING]]`，`depthWrite=true`，`blend=true`；
+  - 修复后（21.1.30）：监守者 5 个 `TRANSLUCENT_EMISSIVE` 叠加层全部
+    `values={ALPHA_CUTOUT=0.1}` + `depthWrite=false`；`ALPHA_TEST` 层 `ALPHA_CUTOUT=0.1` + 写深度；
+    `SOLID` 层不定义（与 vanilla `ENTITY_SOLID` 一致）。
+- 1.20.1 实机：监守者（含青色光环/发光层、sonic boom 窗口）+ 幻翼 + 牛 + 水墙同场截图，无
+  实体消失/黑片，水面在片状几何后正常渲染（`versions/1.20.1/run/alpha_ab/screenshots/`）。
+- **未做成的对照**：幻翼/监守者的「有 bug vs 修复」像素级 A/B 不成立——幻翼翅膀在动画中持续
+  摆动、且两次独立启动的整帧亮度不同（世界时间/曝光差异），逐像素差被这两项噪声淹没
+  （同 ms 帧的全屏 mean|Δ|≈57~77）。本轮的可证伪证据取**管线状态本身**（上面的 define/深度表），
+  而不是截图统计。
