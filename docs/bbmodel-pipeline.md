@@ -334,3 +334,32 @@ animation controller。已用脚本对照 HEAD 逐项确认 `models`/`animation.
 4. **`mcmcp_build(<version>)` 后 `clientRunVmArgs.txt` 会被重写**：临时加的 `-D` 开关（如
    `-Deyelib.gpuSkinning=false`）必须重新追加；GPU 蒙皮开关 A/B 实测对幻翼翅膀外观无差异
    （1.20.1 开/关同机位同结果），可排除 GPU 蒙皮。
+
+### 2026-11-06 追加：羊驼「表情」根因 = eyelib 26.1 把观测写死（已修复）
+
+上文「两版本脸部一致」的对照拍的是**平静态**，掩盖了真正的差异：用户参考图里的
+「红色十字 + ε 嘴」不是发饰，而是 `expression_anger` + `mouth` 的**生气表情**
+（`animation.mdsj_llama.shoot_anger`），只在
+`controller.animation.mdsj_llama.shoot` 进入 `shooting` 时播放，转移条件是
+`q.facing_target_to_range_attack`。
+
+根因在 `qylEyelib` 的 `EntityExtraDataRuntimeHooks.observeGoalFlags`：
+`>=26.1` 分支把 `RangedAttackGoal.attackTime` 观测写成常量 `false`、
+`AvoidEntityGoal.toAvoid` 写成 `null`，且 `eyelib.mixins.json` 的 modern 分支
+把两个 accessor 从列表里整体剔除。于是 26.1 上
+`query.facing_target_to_range_attack` / `query.is_avoiding_mobs` 恒为 0：
+生气表情、回避类动画一律不播。cospack 里前者被引用 24 处、后者 19 处。
+
+修复（eyelib 21.1.29，PR #44）：两个观测统一走既有 accessor，modern 分支重新登记
+`RangedAttackGoalAccessor` / `AvoidEntityGoalAccessor`。
+
+**实机验证（26.1.2 客户端）**：
+- 女巫 `RangedAttackGoal running=true attackTime=45/20/53` → 查询 `true`（修复前恒 false）。
+- 狼的 `AvoidEntityGoal<Llama>` → `is_avoiding_mobs=true / is_avoid=true`（修复前恒 false）。
+- 羊驼客户端强制 `facing_target_to_range_attack=true`：脸上出现**怒气十字 + 生气眉 + ε 嘴**；
+  置回 false 即消失（A/B 截图，`work/evidence_20261106/`）。
+- 1.21.1 复测女巫查询仍为 `true`；该节点生成代码与 21.1.28 逐字节等价（行为零变化）。
+
+排查口径教训：**版本对照必须覆盖「触发态」**，只在平静态对比会得出「两版本一致」的错误结论；
+且模型里的 `expression_*` / `mouth` 这类埋在头部内部（z 在头骨面之后）的部件，天然只在被
+动画推出来时可见——看不到表情时先查驱动它的 molang 查询，再怀疑深度/资源。
