@@ -5,6 +5,9 @@
     },
     "doki_warden_glow_nocull:warden_bioluminescent_layer": {
       "+states": ["DisableCulling"]
+    },
+    "doki_bee_alphatest_nocull:entity_alphatest": {
+      "+states": ["DisableCulling"]
     }
   }
 }

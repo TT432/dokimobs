@@ -425,3 +425,53 @@ ADR-0040）上表现为：**BLEND / TRANSLUCENT_EMISSIVE 的 pass 既没有 `ALP
   摆动、且两次独立启动的整帧亮度不同（世界时间/曝光差异），逐像素差被这两项噪声淹没
   （同 ms 帧的全屏 mean|Δ|≈57~77）。本轮的可证伪证据取**管线状态本身**（上面的 define/深度表），
   而不是截图统计。
+
+## 2026-11-06 末影人搬运方块渲染
+
+**结论先行**：末影人的 `carrying` 动画、`carrying_ctl` 控制器与 `query.is_carrying_block` 查询
+本来就是接通的（实机 `currState=carry`、双臂 +40°）；缺的是**方块本体**。eyelib 取消原版
+`RenderLivingEvent` 后原版 `CarriedBlockLayer` 不再执行，而 eyelib 没有对应渲染。基岩版资源包
+同样只定义手臂姿态（`entity/enderman.entity.json` + `controller.animation.enderman.carrying`，
+条件 `query.is_carrying_block`），方块由引擎按实体 carried block state 绘制。
+
+**实现**（qylEyelib 21.1.31）：新增 `CarriedBlockRenderer`，在
+`EntityRenderOrchestrator.renderComponents` 的实体 submit 阶段调用一次：
+- 方块来源走 `RenderSystemPort.getCarriedBlockState`（bridge 读 `EnderMan#getCarriedBlock`），
+  绘制走宿主 `BlockRenderDispatcher#renderSingleBlock`（26.1 为
+  `BlockModelResolver.update` + `BlockModelRenderState#submit`）；不写死方块 id；
+- 位置取 `lefthand`/`righthand` 骨骼 bind pivot 经当前动画矩阵后的世界中点，朝向/缩放取根骨骼
+  当前姿态；不写死实体专属偏移；资源包没有双手骨骼则不画（不做错误位置兜底）；
+- **26.1 必须放实体 submit 阶段**：放进 `extraRender`（deferred geometry writer /
+  `renderAllFeatures`）时 `BlockModelRenderState.submit` 不会出画；这是本轮唯一的版本差异坑。
+
+**验证**：1.20.1 / 1.21.1 / 26.1.2 三节点实机，dirt 与 TNT 两种 block state 均显示在双手之间；
+清除 `carriedBlockState` 后方块消失、手臂回 default；原版渲染（`doki=false`）不会双画。
+证据与完整探针记录见 [work/enderman-carried-block.md](../work/enderman-carried-block.md)。
+
+## 2026-11-06 蜜蜂背面看不到翅膀（材质剔除 + 背面 UV 空）
+
+**现象**：1.20.1 实机从背后看 doki 蜜蜂，头发两侧应有翅膀的位置完全空白（正面正常）。
+
+**根因（数据实测）**：`geometry.mdsj_bee` 的 4 个翅膀骨骼（`rightwing1/2`、`leftwing1/2`）
+各是 1px 厚薄板（`z = 0.18125~0.24375`），正反两面各一套 UV：
+- `-z` 面 UV（rightwing1 `(0.1016,0)~(0.1953,0.0547)`）画有翅膀图案，104 px 中 74 个不透明；
+- `+z` 面 UV（rightwing1 `(0.1016,0.0625)~(0.1953,0.1172)`）4 张变体贴图均为空（rightwing1
+  104 px 仅 1 个不透明像素，rightwing2 全透明，leftwing1 仅 8 个）。
+`default` 材质 `cutout` 解析为 ALPHA_TEST + **背面剔除**，于是从背后看 `+z` 面透明、
+`-z` 面被剔除 → 翅膀整体消失。头发（`z` 最远 0.4587）遮挡不到翅膀外段（`x` 0.46~0.94），
+不是遮挡问题。
+
+**修复（不动模型/贴图/动画）**：`doki.material` 新增
+`doki_bee_alphatest_nocull:entity_alphatest` + `DisableCulling`（与
+`doki_warden_alphatest_nocull` 同构）；`minecraft:bee` 的 client_entity `materials` 增加
+`nocull`；`controller.render.mdsj_bee` 的 `materials` 由 `[{"*": ["Material.default"]}]`
+改为追加 `"rightwing*"` / `"leftwing*"` → `Material.nocull`。双面渲染让 `-z` 面从背后也可见
+（原版 bee 即 `entityCutoutNoCull` 语义）。注意与幻翼「双面重合面 z 冲突」不同：蜜蜂是**单面**
++ 背面 UV 空，删面/偏移不适用。脚本：`work/pack_patch_bee_wing_nocull.py`。
+
+**验证**：1.20.1 / 1.21.1 / 26.1.2 三节点实机，summoned `minecraft:bee`（NoAI/NoGravity），
+玩家正后 / 正前 3.5~4 格截图：三节点背面翅膀均可见、正面无回归
+（`versions/{1.20.1,1.21.1,26.1.2}/run/debug_shots/screenshots/bee_{back,front}_fix*.png`；
+放大对比 `work/evidence_20261106/bee_back_fix_zoom.png` / `bee_front_fix_zoom.png` /
+`*_1211*` / `*_2612*`）。修复前背面 UV 的 alpha 证据见
+`work/evidence_20261106/bee_default_uv_marked.png`（绿框 `-z` 有图案，蓝框 `+z` 空白）。
