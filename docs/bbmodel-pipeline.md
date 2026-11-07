@@ -559,3 +559,145 @@ ADR-0040）上表现为：**BLEND / TRANSLUCENT_EMISSIVE 的 pass 既没有 `ALP
   `versions/26.1.2/run/dog_shots/screenshots/2612_dog_sit_{ground_clear,boat}.png`。
 - 注意：旧实现的逐骨骼采样只证明「动画值已写入」，不能证明视觉姿态正确；本次以地面/船载
   实机截图 + `AllBody` 偏移为证。
+
+## 2026-11-07 守卫者眨眼 / 受伤 overlay / 栓绳 / 行商羊驼装饰
+
+四项用户反馈，根因都在 eyelib 渲染层或资源绑名，不在动画数值/几何/贴图本身。
+
+### 守卫者眨眼不覆盖眼眶（骨骼名不匹配）
+
+**根因**：共享剪辑 `animation.mdsj_entity.blink` 只驱动两个骨骼名——`eyelid`
+（`scale.y` 1→0）与 `eyebrows`（`position.y` −1.2px）；守卫者 bbmodel 的组名是
+`EyeBalls` / `Eyebrows`，eyelib 按 animator `name`（而不是 uuid）绑定骨骼，名字对不上，
+`eyelid` 通道没有落点，于是只有眉毛动、眼睑不动。
+
+**修复**（`work/patch_guardian_blink.py`，只改名字，不改几何/贴图/动画曲线）：
+将 group `EyeBalls → eyelid`、`Eyebrows → eyebrows`，并把该 bbmodel 15 条动画里
+30 个 animator 的 `name` 同步改名（`uuid` 不变）；动画值、时间轴、时长一律未改。
+
+**验证**（三节点）：
+- 1.20.1：`eyelid` `scale.y` 采样 min 0.0 / max 1.0，240 tick 内 12 个闭合 tick；
+  截图闭眼帧瞳孔像素骤降。证据 `work/evidence_20261107/samples_1201.txt`、
+  `work/guardian_blink_{open,closed}_1201.png`。
+- 1.21.1：`work/evidence_20261107/blink1211_{6,51}`（睁/闭）。
+- 26.1.2：`work/evidence_20261107/blink_data_2612.txt`（240 tick 逐 tick 采样）
+  显示 `eyelid` 每约 80 tick 出现一次 1.0→0.0→1.0，闭合 2–3 tick，闭合时
+  `eyebrows.position.y = -0.075`（= −1.2px）；截图文件名带采样值
+  `work/evidence_20261107/f_{054,061}_lid*.png`，
+  其中 `lid+1.00` 睁眼、`lid+0.00` 眼睑完全覆盖（`work/evidence_20261107/blink2612_lid_seq.png`
+  为睁眼/半闭/全闭并排对照）。
+
+### 萌化生物受伤无红色 overlay（26.1 适配器写死）
+
+**根因**：`RenderLivingEventAdapter` 的 26.1 分支把 overlay 坐标写死为
+`OverlayTexture.NO_OVERLAY`，1.20.1/1.21.1 分支则已按 `hurtTime` 计算；因此只有 26.1 没红闪。
+
+**修复**：26.1 分支改用 `LivingEntityRenderer.getOverlayCoords(state,
+accessor.callGetWhiteOverlayProgress(state))`；`LivingEntityRendererAccessor` 增加 26.1
+`EntityRenderState` 重载，`eyelib.mixins.json` 全版本注册该 mixin（旧重载仅 legacy 存在）。
+
+**验证**：三版本实机对 doki 生物造成 1 点伤害，`hurtTime` 9→1 的每 tick 帧全身明显变红，
+`hurtTime=0` 恢复。证据 `work/evidence_20261107/hurt_1201.png`、
+`work/evidence_20261107/hurt_1211.png`、
+`work/evidence_20261107/h_{02,06}_ht*.png`（文件名带 hurtTime，
+`work/evidence_20261107/hurt2612_seq.png` 为 ht00/08/06/04/02/00 并排）。
+
+### 栓绳不渲染 / 锚点不对（事件早退 + 缺 Bedrock locator）
+
+**根因**：eyelib 取消 `RenderLivingEvent.Pre`；1.21.1+ 原版栓绳在
+`LivingEntityRenderer.render` 末尾调用的 `EntityRenderer.render` 内绘制，事件早退把绳一起跳过
+（1.20.1 的 `MobRenderer.render` 在 super 之后仍画原版绳，但用原版 `getLeashOffset`，
+与基岩版模型绑点不一致）。
+
+**修复**（qylEyelib）：
+- 新增 `client/render/LeashRenderer`，在 `EntityRenderOrchestrator.renderComponents` 末尾、
+  每实体每帧调用一次。
+- 锚点按 Bedrock 约定优先取模型 `lead` locator（`ModelPoseTransforms.resolveLocatorPose` +
+  basePose 逆变换到世界轴位移）；模型无 `lead` 时回落原版 `getLeashOffset` + 体旋转算法。
+- `<26.1` 用 `RenderType.leash()` 手写 24 段绳；26.1 构造 `EntityRenderState.LeashState`
+  后调 `submitLeash`。
+- 1.20.1 新增 `MobRendererLeashMixin`，仅抑制被 `LeashSuppression` 标记实体的原版绳
+  （标记由 `<26.1` 适配器在事件 cancel 后写入），避免非 doki 实体丢绳、也避免双绳。
+
+**验证**：三版本把羊驼拴到栅栏 knot，绳可见、单根、无原版双线；端点在模型
+`rightitem` 的 `lead` locator（offset `[0.1875, 1.125, 0]`）处（1.21.1 近景
+`work/evidence_20261107/leash_1211_close{,_zoom}.png` 可见绳从该点连到 knot；
+26.1.2 见 `work/evidence_20261107/leash_2612_close.png`）。1.20.1 另留
+`work/leash_1201_{vanilla_,}zoom.png` 对照（原版偏移 vs 本修复）与
+`work/evidence_20261107/leash_1201_a.png`；把 `LeashSuppression` 移入
+`bridge/client/render/adapter` 后重装 jar 复测：
+`work/evidence_20261107/leash_1201_pkgmove.png`（仍为单绳，mixin 抑制生效）。
+
+### 行商羊驼与普通羊驼的区分（同模型同底图，只有第二层装饰）
+
+**素材核对**（对照 Mojang bedrock-samples）：两者共用 `geometry.llama` 与同一组
+`llama_{creamy,white,brown,gray}` 底图，没有独立模型；区分只靠 render controller 第二层
+`(query.mark_variant == 1 && variable.DecorTextureIndex == 0) ? Texture.decor_wandering_trader
+: Array.decor[variable.DecorTextureIndex]`。`work/llama_tex/` 下的 `trader_llama_decor.png`
+即基岩版商队装饰贴图。JE 侧 `TempVariantSetting` 已为 `TraderLlama` 写 `mark_variant=1`。
+
+**标准实现（按 Bedrock 语义补齐 eyelib 能力，不再有 `setupLlamaDecor`）**：
+
+1. **引擎变量**：`variable.DecorTextureIndex` 是 Bedrock 引擎按羊驼装备提供的内置 entity
+   variable（官方 RC 直接引用，资源包不写）。eyelib 新增
+   `EngineEntityVariable` 枚举（application）+ `RenderSystemPort#engineVariable(entity, variable)`
+   （宿主解析，`NaN` = 不适用）+ `EngineEntityVariables` 统一绑定：惰性 supplier，读时取当前值，
+   包内脚本已写同名变量时不覆盖。`ClientEntitySetup` 只调用
+   `EngineEntityVariables.bind(entity, scope)`；JE `Llama` 包名/装备槽差异留在 bridge adapter。
+2. **相等语义**：编译产物的 `==`/`!=` 走 `MolangObject.equalsF`，旧实现用对象 `equals`，
+   惰性供应商变量与字面量 `0` 判为不等（实测 `variable.DecorTextureIndex == 0` 恒 false）。
+   改为数值类型之间按 `asFloat` 比较（官方「all numerical values are floats」），
+   `nEqualsF` 由 `equalsF` 取反。
+3. **变量名大小写**：官方 Molang「除字符串外大小写不敏感」；`MolangScope` 与 `MolangStruct`
+   统一规范化名字（无大写时零分配），`variable.DecorTextureIndex` 与
+   `variable.decortextureindex` 等价，不再双写。
+4. **材质**：官方 `entity/llama.entity.json` 声明 `materials.default = "llama"`，官方 RC 输出
+   3 层（base / decor / decor_none）→ `llama` 就是 masked-multitexture 材质。eyelib 内置
+   `bedrock_entity.material` 的 `"llama:entity_alphatest"` 补 `"+defines": ["MASKED_MULTITEXTURE"]`；
+   cospack 两实体恢复 `materials.default = "llama"`，删除临时 `doki_llama_multitexture`。
+
+**验证**：三版本运行时 `TraderLlama` 的 `modelComponents=3`，第二层为
+`decor/trader_llama_decor.png`，普通羊驼第二层为 `decor_none.png`（全透明）；
+1.20.1 用**小写** `variable.decortextureindex` 读回 `0.0`，证明大小写不敏感生效。
+截图 `work/evidence_20261107/llama_std_{2612,1211,1201}.png`（行商羊驼均显示蓝金商队装）。
+回归（标准实现落地后三版本实机）：眨眼开/闭对照
+`work/evidence_20261107/blink_1211_std_pair.png`、`blink_1201_std_pair.png`，
+26.1.2 闭合帧 `blink_std_2612.png`；受伤红闪 `hurt_std_2612.png`、
+`hurt_1211_std.png`、`hurt_1201_std.png`；栓绳在装饰截图同帧可见（单绳）。
+
+**口径坑（本次踩到）**：两处缓存会让「源码已改、实机还是旧行为」：
+- dokimobs 资源（`pack.cospack`/`doki.material`/bbmodel）必须重跑该节点 build，否则 run
+  目录仍用旧资源。26.1.2 首次实机时 `build/resources/main/.../doki.material` 比源文件早 8
+  分钟、不含新材质，表现为「装饰丢失」。判定：比对 `versions/<node>/build/resources/main/...`
+  与 `src/main/resources/...` 的内容，或运行时查 `modelComponents` 的 `renderType`。
+- eyelib 以 `21.1.31` 固定版本发布到 mavenLocal；Gradle/MDG 会缓存该 jar 的 transform
+  产物。重发布后必须重跑 `mcmcp_build`/`copyEyelibToMods`（1.21.1 的 `run/mods` 还要复检
+  md5），否则客户端仍加载旧 class（本次表现为新变量未绑定、`==` 仍用旧语义）。
+
+### 验证与静态检查汇总
+
+- `molangCheck`：`:1.20.1` / `:1.21.1` / `:26.1.2` 均 `683 expressions, 0 error(s)`
+  （注意必须传 `-PmolangTarget=<repo>/src/main/resources/assets/dokimobs`，默认相对路径在
+  子节点下不解析；此坑已记账）。
+- NullAway（qylEyelib）：三节点错误与 HEAD 基线一致——1.20.1 / 1.21.1 各 3 条
+  `ClientEntitySetup:95/96/115`；26.1.2 额外 `IrisPipelineCompat:38`，共 4 条，无新增。
+- `:test`（qylEyelib）与基线一致：1.20.1 1734 tests / 1 failed（`StonecutterCommentPlacementTest`），
+  1.21.1 1736 / 1 failed（同），26.1.2 1736 / 3 failed（再 +`BrRenderStateLightingModelTest`、
+  `BrRenderStateSpecTest`）。本轮新增的 `LeashSuppression` 最初放在
+  `bridge.client.render`，触发 `ArchitectureTest.aclPublicApiMustBeInterfaceOrAnnotation`
+  （ADR-0018 I-5：bridge 只暴露接口，实现放 `adapter/` 子包）；移入
+  `bridge.client.render.adapter` 后该类测试恢复通过。`EngineEntityVariable` 放在 bridge
+  又触发 `applicationMustNotDependOnBridgeConcreteClasses`，最终放到 `molang`（bridge 可依赖
+  application 类型），复测通过，仅剩上述基线失败。新增测试
+  `MolangEqualityTest`（数值跨惰性供应商按值相等）与 `MolangScopeTest` 三条大小写不敏感用例。
+- 帧捕获口径：2 个 tick 的眨眼用「eval 逐次截图」必然漏拍。有效做法是在
+  `ClientTickEvent.Post` 注册监听，每 tick 截图并把当帧状态值写进文件名
+  （`f_061_lid+0.00.png`、`h_06_ht06.png`），事后按文件名挑帧；截图回调在渲染线程，
+  仍属游戏真实渲染输出，不是自建代理。
+- 证据时效：四项功能在「标准实现」落地后重新跑过三版本实机（26.1.2 12:37、1.21.1 12:39、
+  1.20.1 12:41 启动的客户端，资源与 mavenLocal jar 均为最终版）；此前 16:56–17:44 的一轮
+  证据保留作历史对照（旧材质/双写变量方案）。26.1.2 的标准实现回归截图
+  `blink_std_2612.png`、`hurt_std_2612.png`、`llama_std_2612.png`。
+- 未覆盖：26.1.2 只验了「拴栅栏 knot」链路，未验玩家手持拴绳的 holder 位移路径；
+  1.20.1 的双绳抑制只对照了一头被拴实体，未单独构造「同帧存在 doki 与非 doki 被拴实体」
+  的组合场景。
