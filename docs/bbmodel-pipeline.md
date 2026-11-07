@@ -475,3 +475,87 @@ ADR-0040）上表现为：**BLEND / TRANSLUCENT_EMISSIVE 的 pass 既没有 `ALP
 放大对比 `work/evidence_20261106/bee_back_fix_zoom.png` / `bee_front_fix_zoom.png` /
 `*_1211*` / `*_2612*`）。修复前背面 UV 的 alpha 证据见
 `work/evidence_20261106/bee_default_uv_marked.png`（绿框 `-z` 有图案，蓝框 `+z` 空白）。
+
+## 2026-11-07 羊染色与狼坐姿修复
+
+### 羊染色（已实现）
+
+**需求**：羊可被染料染色（`minecraft:sheep` 的 `Color`）；命名为 `jeb_` 时羊毛呈彩虹渐变。
+不改模型/贴图/动画，只改渲染控制器与 Java 查询。
+
+**数据侧**（`work/pack_patch_sheep_dye.py`，`pack.cospack`）：
+
+- 主控制器 `controller.render.mdsj_sheep` 改为只匹配 `*` → `Material.default`，
+  并用 `part_visibility: [{"wool*": ["0.0"]}]` 隐藏全部 `wool*` 骨骼（避免与羊毛层双画）。
+- 新增 `controller.render.mdsj_sheep_wool`：`materials: [{"wool*": ["Material.wool"]}]`，
+  几何仍为 `Array.geos[query.is_sheared]`，`color` 的 r/g/b 取
+  `query.doki_sheep_wool_r/g/b`（a=1）。该控制器只把 `wool*` 骨骼作为基础可见集，
+  因此非羊毛骨骼不会被着色或重画。
+- **RenderController 可以连续取色**：`color` 是逐帧求值的 Molang 表达式，jeb_ 的两色插值
+  就是靠它做的，不需要 16 张预染色贴图。限制是 `color` 作用于**整个控制器组件**（不是单个
+  材质组）：若直接放在主控制器上，会把皮肤/头发一起乘色；因此必须把 `wool*` 拆成独立
+  RenderController，这也是本次拆控制器的唯一原因。
+
+**Java 侧**（`DokiMolangQueries`）：
+
+- `doki_sheep_wool_r/g/b` 从渲染 host context 取 `Sheep`，按 `getColor()` / 自定义名取色。
+- 静态色复刻 vanilla `Sheep.createSheepColor`：白色固定 `0.9019608`，其余
+  `DyeColor` diffuse × 0.75（1.20.6+ 按原版 `floor` 量化到 8 bit）。
+- `jeb_` 复刻各节点 `SheepFurLayer`：
+  - 1.20.1 / 1.21.1：`i = tickCount / 25 + entityId`，取 `DyeColor.byId(i)` 与 `i+1`，
+    `f = ((tickCount % 25) + partialTick) / 25` 线性插值；
+  - 26.1：时间轴改为 `ageInTicks = tickCount + partialTick`，**不再加 entityId**；
+    颜色顺序仍是 `DyeColor.values()` 的 16 色、25 tick 步进。
+    **踩坑**：26.1 的 `ColorLerper.SHEEP` 构造用的是 `DyeColor.values()`，而
+    `MUSIC_NOTE_COLORS` 的 12 色顺序只属于 `MUSIC_NOTE`；首版按 12 色写导致彩虹顺序错，
+    已用 `ColorLerper.getLerpedColor(SHEEP, age)` 实机比对纠正。
+- 剪毛后 `geometry.sheep_sheared2` 仍保留 8 个 `wool*` 毛边骨骼，这些骨骼同样随染料/彩虹着色；
+  主控制器的隐藏集合与几何选择无关，两套几何下羊毛层都只出现一次。
+
+**验证**（三节点实机）：
+
+| 节点 | 静态色 16/16 对照基准 | jeb 对照 | 截图 |
+|---|---|---|---|
+| 1.20.1 | `Sheep.getColorArray(DyeColor)`，16 色逐通道 err=0 | 手算 `tickCount/id/partialTick` 插值，帧偏移内一致 | `versions/1.20.1/run/sheep_shots/screenshots/plain_{red,blue,lime}`、`jeb_rainbow*`、`sheared_red` |
+| 1.21.1 | `Sheep.getColor(DyeColor)` 拆 ARGB，16 色 err=0 | 同上（`Sheep.getColor` 版本） | `versions/1.21.1/run/sheep_shots/screenshots/1211_{jeb,blue}` |
+| 26.1.2 | `ColorLerper.SHEEP.getColor(DyeColor)`，16 色 err=0 | `ColorLerper.getLerpedColor(SHEEP, tickCount+partialTick)`，best err ≤0.009（组件帧与探针帧的部分 tick 差 + 8bit 量化） | `versions/26.1.2/run/sheep_shots/screenshots/2612_{blue,jeb_0..5}` |
+
+另外：三节点都用 `Player.interactOn(...)` 走完整「玩家手持染料右击羊」链路，
+颜色由白变 lime（26.1 需带 hitVec 的三参重载）；1.20.1 检查了剪毛前后组件结构——主组件 `rcColor=null` 且
+`visibleWoolBones=0`，羊毛组件 `rcColor=<染料色>` 且 `visibleWoolBones=10`（剪毛后 8）。
+`gradlew :<node>:molangCheck -PmolangTarget=<src assets>` 三节点均
+`683 expressions, 0 error(s)`；`assemble` 三节点通过；三个 jar 内的 `pack.cospack` 均已包含
+`controller.render.mdsj_sheep_wool`。
+
+### 狼坐姿修复（无专用载具素材，基于现有剪辑 + 骑乘高度偏移）
+
+**用户反馈**：命令坐下后模型看起来仍像站立（附图为旧姿态）；这是错误的坐姿，需要修复。
+
+**素材核对**：
+- `wolf.bbmodel` 的 `animations` 共 14 条，唯一坐姿是 `wolf.坐下`（loop=hold）；
+  不存在 `骑/载具/ride/vehicle/sit_boat` 等第二条坐姿。
+- 模型骨骼/元素中没有 `seat`/`saddle`/`ride`/`vehicle` 命名；14 条动画里 `wolf.攻击B`、
+  `wolf.落地`、`wolf.坠落` 未被 `wolf.json` 引用，但均与坐姿无关。
+- 迁移前的 `pack.cospack`（5ff34db^）本来就没有 `minecraft:wolf` 条目；当前 cospack 也没有。
+- vanilla 1.20.1 `WolfModel`/`WolfRenderer` 同样只有单一 sitting pose，没有载具分支。
+- 结论：没有第二条载具坐姿素材；但旧 `wolf.坐下` 的数值本身不对——`AllBody.y=-5px`、
+  小腿 `+80°` 使身体过高、小腿竖直，视觉上读作站立。
+
+**修复**（`work/patch_wolf_sit.py`，只改 `wolf.bbmodel` 的嵌入动画 `wolf.坐下`，不改几何/贴图）：
+- `AllBody.position.y = q.is_riding ? -3 : -9`（bbmodel 剪辑空间像素）：
+  地面 `-9px` 让身体接近地面；骑乘 `-3px` 抬高 6px（0.375 格）适配船/矿车乘客高度。
+- 大腿 `x=-80` 保持；小腿 `x=80 → 160`（游戏内 `-160°`），小腿折到身下；脚 `x=15` 保持。
+- 结果为明确的跪坐；载具中同一坐姿抬高，避免下半身陷进船体。骑乘差异是同一剪辑的 Molang
+  高度分支，不是第二条美术动画；若以后要真正不同的载具腿部姿势，仍需新增剪辑。
+
+**验证**：
+- 1.20.1 / 1.21.1 / 26.1.2 实机召唤 doki 狼并 `Sitting:1b`：
+  - 地面 `AllBody.position.y = -0.5625`（-9px）；
+  - 船载 `AllBody.position.y = -0.1875`（-3px，`q.is_riding` 生效）。
+- 1.20.1 还用空手 `Player.interactOn` 对已驯服狼走 `setOrderedToSit` 链路，下一 tick
+  `isInSittingPose=true`；坐姿动画正常进入。
+- 截图：`versions/1.20.1/run/sheep_shots/screenshots/dog_sit_cond_{ground,boat}`、
+  `versions/1.21.1/run/dog_shots/screenshots/1211_dog_sit_{ground_clean,boat}`、
+  `versions/26.1.2/run/dog_shots/screenshots/2612_dog_sit_{ground_clear,boat}.png`。
+- 注意：旧实现的逐骨骼采样只证明「动画值已写入」，不能证明视觉姿态正确；本次以地面/船载
+  实机截图 + `AllBody` 偏移为证。
