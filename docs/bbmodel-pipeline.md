@@ -701,3 +701,42 @@ accessor.callGetWhiteOverlayProgress(state))`；`LivingEntityRendererAccessor` �
 - 未覆盖：26.1.2 只验了「拴栅栏 knot」链路，未验玩家手持拴绳的 holder 位移路径；
   1.20.1 的双绳抑制只对照了一头被拴实体，未单独构造「同帧存在 doki 与非 doki 被拴实体」
   的组合场景。
+
+## 2026-11-08 装备挂载（手持物 + 盔甲）
+
+**用户需求**：以基岩版为基准检查 attachment 是否正确附加到手部（入口 = 原生能持有工具的僵尸），
+同时查盔甲；解决抽象而非表象。
+
+真源是 qylEyelib 的挂载实现（ADR-0043），dokimobs 侧不改数据：
+
+- **手持物**：挂点 = `q.item_slot_to_bone_name` 对应的 item 骨骼（`rightitem`/`leftitem`）。修复前
+  `HandItemRenderer` 在骨骼帧上再叠 `Rx(-90)·Ry(180)` + 硬编码 `translate(-0.25,0.1,-1.15)`
+  （该平移在骨骼基下放大到约 1 格），剑飘在头肩附近。现在只剩 `Rx(-90)`：基岩版模型空间相对
+  JE 实体模型空间是绕 Z 轴 180°，代入 vanilla `ItemInHandLayer` 的 `Rx(-90)·Ry(180)` 后
+  `Ry(180)` 被抵消。
+- **盔甲**：萌化实体此前完全没有盔甲——`RenderLivingEvent` 被 cancel 后原版
+  `HumanoidArmorLayer` 不执行，而 eyelib 只 tick 盔甲槽从不渲染。现在 vanilla 人形盔甲部件按
+  body-part 骨骼名绑定（`head`/`body`/`rightarm`/`leftarm`/`rightleg`/`leftleg`），空间换算
+  `scale(-1,-1,1)`，pass = cutout + 禁剔除。
+- **26.1 手持物完全不可见**：挂载物原先渲染在几何 writer 内，26.1 的 `SubmitNodeCollector`
+  在 `renderAllFeatures` 阶段不再接收新节点 → 物品几何被丢弃。现在挂载物在模型几何**提交之前**
+  渲染，骨骼帧由 `ModelPoseTransforms.resolveBonePose`（模型 + 本帧动画采样 + 模型根位姿）现算。
+  同时去掉 `extraRender` 钩子（按渲染组件重复调用 → 多组件实体重复画手持物）。
+- **doki 模型的挂点现状**：`geometry.zombie_anim` 只有 `rightitem`（locator `lead_hold`），
+  没有 `leftitem` → 副手物品不显示，与基岩版「无骨骼不挂载」一致，不做原点兜底。
+  body-part 骨骼齐全（`head`/`body`/`rightarm`/`leftarm`/`rightleg`/`leftleg`），因此盔甲可直接绑定。
+- **姿态随机性坑**：zombie 的 `scripts.initialize` 里 `variable.pose = math.random_integer(0,7)`，
+  每个实例/每次重载的手臂姿态不同。跨会话比对截图会把「姿态不同」误判为「挂载方向改了」；
+  判定要在同一实例、同一帧内和原版渲染（`doki=false`）对照。
+
+**验证**（三节点实机，铁剑 + 全套铁甲 + 屋顶遮阳 + `NoAI`）：
+
+| 节点 | 结果 | 截图 |
+|------|------|------|
+| 1.20.1 | 剑在拳内，盔甲四件全部绑定且随抬臂一起动 | `versions/1.20.1/run/debug_shots/screenshots/attach_1201_ship.png`、`attach_armor_doki.png`、`attach_swing1.png`、`attach_offhand_missing.png` |
+| 1.21.1 | 同上 | `versions/1.21.1/run/debug_shots/screenshots/attach_1211_ship.png` |
+| 26.1.2 | 同上；修复前同场景无剑（`attach_2612.png`） | `versions/26.1.2/run/debug_shots/screenshots/attach_2612_ship.png` |
+
+静态核对：`resolveBonePose` 与手写骨骼链（root→waist→body→rightarm→righthandxia→rightitem）
+矩阵逐元素同值。未覆盖：盔甲 trim/glint、`hide_armor`、`BODY` 槽（狼铠）、自定义 `binding`
+（Molang）与基岩版 ±24px 绑定偏移——见 ADR-0043 §3。
