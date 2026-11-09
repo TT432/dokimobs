@@ -4,7 +4,7 @@
 依赖项 `eyelib` 是独立项目（`../qylEyelib`），它的发版见该项目 `.opencode/skills/eyelib-release/SKILL.md`；本文档只覆盖 dokimobs 侧。
 
 ## 版本与坐标
-- 版本唯一来源：`gradle.properties` 的 `mod_version`（当前 `0.3.12`）。
+- 版本唯一来源：`gradle.properties` 的 `mod_version`（当前 `0.3.13`）。
 - 节点：`stonecutter.properties.toml` 的 `1.20.1`（legacy Forge）、`1.21.1`、`26.1.2`（NeoForge）。
 - 产物名：`dokimobs-${mod_version}+${minecraft_version}-${forge|neoforge}.jar`。
 - CurseForge 项目：ID `1234919`，slug `dokimobs`。
