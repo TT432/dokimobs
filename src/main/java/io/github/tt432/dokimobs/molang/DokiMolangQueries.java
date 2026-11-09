@@ -6,7 +6,9 @@ import io.github.tt432.eyelib.molang.mapping.api.MolangFunction;
 import io.github.tt432.eyelib.molang.mapping.api.MolangMapping;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.warden.Warden;
+import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.item.DyeColor;
 //? if <26.1 {
 import net.minecraft.world.entity.animal.Sheep;
@@ -30,6 +32,18 @@ import net.minecraft.world.entity.animal.sheep.Sheep;
 public final class DokiMolangQueries {
     private static final HostRole<Warden> WARDEN = HostRole.of("Warden", Warden.class);
     private static final HostRole<Sheep> SHEEP = HostRole.of("Sheep", Sheep.class);
+    private static final HostRole<LivingEntity> LIVING = HostRole.of("LivingEntity", LivingEntity.class);
+
+    /**
+     * 主手是否持有弩。掠夺者模型把弩烘焙在右前臂（bone19..bone28）上，原生只应在持弩时显示；
+     * 用物品类型判断而非名称，兼容自定义弩。
+     */
+    @MolangFunction(value = "doki_holding_crossbow", description = "主手是否持有弩（掠夺者内置弩显隐）")
+    public static float holdingCrossbow(MolangScope scope) {
+        return scope.getHostContext().get(LIVING)
+                .map(living -> living.getMainHandItem().getItem() instanceof CrossbowItem ? 1F : 0F)
+                .orElse(0F);
+    }
 
     @MolangFunction(value = "doki_sheep_wool_r", description = "羊毛颜色 R 分量（含 jeb_ 彩虹）")
     public static float sheepWoolRed(MolangScope scope) {

@@ -67,6 +67,40 @@
         [
           "Texture.default"
         ]
+      ],
+      "part_visibility": [
+        {
+          "bone19": [
+            "query.doki_holding_crossbow"
+          ],
+          "bone20": [
+            "query.doki_holding_crossbow"
+          ],
+          "bone21": [
+            "query.doki_holding_crossbow"
+          ],
+          "bone22": [
+            "query.doki_holding_crossbow"
+          ],
+          "bone23": [
+            "query.doki_holding_crossbow"
+          ],
+          "bone24": [
+            "query.doki_holding_crossbow"
+          ],
+          "bone25": [
+            "query.doki_holding_crossbow"
+          ],
+          "bone26": [
+            "query.doki_holding_crossbow"
+          ],
+          "bone27": [
+            "query.doki_holding_crossbow"
+          ],
+          "bone28": [
+            "query.doki_holding_crossbow"
+          ]
+        }
       ]
     },
     "controller.render.doki_blaze": {

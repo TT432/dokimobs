@@ -740,3 +740,106 @@ accessor.callGetWhiteOverlayProgress(state))`；`LivingEntityRendererAccessor` �
 静态核对：`resolveBonePose` 与手写骨骼链（root→waist→body→rightarm→righthandxia→rightitem）
 矩阵逐元素同值。未覆盖：盔甲 trim/glint、`hide_armor`、`BODY` 槽（狼铠）、自定义 `binding`
 （Molang）与基岩版 ±24px 绑定偏移——见 ADR-0043 §3。
+
+## 2026-11-09 掠夺者旗帜/头部/弩、盔甲锚点、CarryOn、闪电苦力怕
+
+五项用户反馈，根因全部定位后在 eyelib 21.1.33（三节点重新发布）与 dokimobs 资源侧修复；
+最终验证为 1.20.1 / 1.21.1 / 26.1.2 三节点实机截图，不是单节点推断。
+
+### ① 掠夺者不祥旗帜不可见 → eyelib 新增 head 槽物品渲染
+
+- **根因**：掠夺者的不祥旗帜是 `Raid` 装备到 `EquipmentSlot.HEAD` 的普通物品；原版由
+  `CustomHeadLayer` 画。eyelib 取消 `LivingEntityRenderer` 后，`ArmorAttachmentRenderer` 只处理
+  `ArmorItem`，HEAD 槽非盔甲物品没有任何渲染路径。
+- **修复**：eyelib 新增 `client/render/HeadItemRenderer`，在 `renderAttachments` 中先于盔甲/手持物
+  调用。变换与 vanilla 完全一致：head 骨骼帧 → pivot → `scale(-1,-1,1)`（JE→Bedrock 模型空间）
+  → vanilla `CustomHeadLayer.translateToHead`（`(0,-0.25,0)`、Y 180°、`0.625` 缩放）→
+  `renderItemDirect(..., ItemDisplayContext.HEAD, ...)`。盔甲物品跳过，避免与
+  `ArmorAttachmentRenderer` 双画。
+- **实机**：doki 掠夺者 HEAD 白旗现在显示为头顶上方的大白板，与同场景 `doki=false` 的 vanilla
+  掠夺者一致；1.20.1/1.21.1/26.1.2 均验证。
+  截图：`versions/26.1.2/run/debug_shots/screenshots/pillager_after_fix_wide_2612.png`、
+  `banner_ref_2612.png`、`versions/1.20.1/run/debug_shots/screenshots/pillager_1201_controlled.png`、
+  `versions/1.21.1/run/debug_shots/screenshots/fix_1211_scene.png`。
+
+### ② 掠夺者弩模型常显 → 按主手是否持弩显隐
+
+- **根因**：`pillager.bbmodel` 把弩烘焙在右前臂的 `bone19`→`bone28` 子树里，渲染控制器没有任何
+  `part_visibility`，因此即使主手为空也一直显示。
+- **修复**：`DokiMolangQueries` 新增 `query.doki_holding_crossbow`（`getMainHandItem().getItem()
+  instanceof CrossbowItem`，兼容自定义弩）；`controller.render.doki_pillager` 对 `bone19`…`bone28`
+  **逐个**骨骼绑定该条件。注意 `DFSModel.PreBoneFrame` 不继承父骨骼隐藏，只写 `bone19` 会让
+  子骨骼继续画；`bone2/12/17/18` 属于头发/眉毛，不能误伤。
+- **实机**：主手空 → 弩隐藏；主手 crossbow → 弩显示；换成弩后下一帧立即出现（part_visibility
+  逐帧求值）。1.20.1 与 26.1.2 已验证，1.21.1 同资源。
+  截图：`pillager_after_fix_wide_2612.png`、`pillager_1201_controlled.png`。
+
+### ③ 掠夺者头/身体未分离、无独立转动 → 新增 look_at_target 剪辑
+
+- **根因**：`pillager.json` 没有绑定任何 `look_at_target`；bbmodel 的骨骼是
+  `Root>AllBody>UpBody>AllHead(pivot 28.05)>Head(pivot 29.5)`，待机/行走剪辑用
+  AllHead+Head 旋转抵消 UpBody 的 +48.9° 侧转，所以头部从不随视线独立转动。
+- **修复**：新增 `assets/dokimobs/animations/doki_pillager.json`（`BrAnimationLoader` 加载
+  `animations/*.json`），剪辑 `animation.doki_pillager.look_at_target` 只驱动 **AllHead**（颈部），
+  使用 `query.target_x_rotation` / `query.target_y_rotation`；实体 JSON 加短名并在
+  `scripts.animate` 中权重 1.0。共享的 `animation.mdsj_zombie.look_at_target.default` 只驱动
+  `head`，在本模型上会转内部 Head（枢轴在头内），不能用。
+- **实机**：设置 `YHeadRot=135°` 而 `YBodyRot=180°`，头部相对身体独立转动；1.20.1 与 26.1.2
+  截图可见脸/发朝向改变。截图：`pillager_headturn_2612.png`、`pillager_headturn_1201.png`。
+
+### ④ 部分生物盔甲偏移 → body 部件锚点改为颈部
+
+- **根因**：`ArmorAttachmentRenderer` 用持有者同名骨骼 pivot 作为盔甲部件原点。vanilla 人形盔甲
+  的 `body` 部件原点在**颈部**；而 cospack 中 skeleton/villager/zombie_villager/husk/drowned 的
+  `body` 骨骼 pivot 在**腰部**（例：skeleton head=1.889 vs body=1.114；villager 1.8/1.0625），
+  胸甲/护腿整体下移约 0.6~0.8 格；zombie 的 body pivot=1.875=head pivot，所以此前未暴露。
+- **修复**：对 `piece.part()=="body"`，仍在 **body 骨骼帧**内（继承躯干动画），但把平移锚点换成
+  该模型 `head` 骨骼 pivot（颈部）；无 head 骨骼时回退 body pivot。`head`/`arm`/`leg` 部件不变。
+- **实机**：skeleton 全套铁甲修复前是漂浮白条+腰位胸甲，修复后胸甲回到躯干、头盔回到头；
+  zombie control 不变。1.20.1 / 26.1.2 截图：
+  `armor_skeleton_close_2612.png`（修复前） vs `armor_skeleton_after_2612.png`（修复后）、
+  `armor_skeleton_1201.png`、`armor_zombie_after_2612.png`。
+
+### ⑤ CarryOn 抱起萌化生物 → 26.1 off-level 实体 render state 映射
+
+- **根因**：26.1 的 `RenderLivingEvent` 不再携带实体，`RenderLivingEventAdapter` 只能按
+  类型+坐标在 `level.entitiesForRendering()` 中反查。CarryOn `CarriedObjectRender.drawEntity`
+  用 `EntityType.create(NBT)` 造一个**不加入世界**的假实体，再 `extractEntity` + `submit`，
+  所以反查永远失败，doki 渲染不接管 → 抱起后显示 vanilla 模型（实测为一只 vanilla 牛）。
+- **修复**：新增 26.1 专用 `EntityRenderDispatcherMixin`，在 `extractEntity` RETURN 处把
+  **不在 level 中**（`level.getEntity(id) != entity`）的活体 render state → 实体写入弱引用表
+  `ExtractedEntityStates`；`RenderLivingEventAdapter` 先查直接映射，再走坐标反查。
+  `extractEntity` 每次 `createRenderState` 都返回新对象，state 身份可安全作 key。
+- **实机**：26.1.2 装入 CarryOn 2.10.0，服务端 `tryPickupEntity` 返回 true；第三人称正面截图
+  显示抱着的是一只 **doki 牛**（有角、chibi 比例），不再是 vanilla 牛。
+  截图：`carryon_cow_front_after_2612.png`（修复后） vs `carryon_cow_2612.png`（修复前）。
+  **验证口径**：本轮走的是服务端 `tryPickupEntity` 直调 + 客户端渲染；未在自动化环境里模拟
+  客户端按键+右击的完整输入链路。
+
+### ⑥ 闪电苦力怕 charged 层不显示 → 26.1 `query.is_powered` 写死 false
+
+- **根因**：`EntityPortAdapter.isPowered` 的 `>=26.1` 分支直接 `return false`（`PowerableMob` 在
+  26.1 被移除）。运行时探针：`Creeper.isPowered()=true`，但编译求值
+  `query.is_powered`=0.0，基础 RC 的 `Array.creeperskin[query.is_powered]` 与 armor RC 的
+  `part_visibility:*` 都走 false → charged 层完全不显示。
+- **修复**：26.1 分支改为 `entity instanceof Creeper c && c.isPowered()`。同时给
+  `controller.render.mdsj_creeper_armor` 加 `ignore_lighting:true`（官方 Bedrock armor RC
+  还带 `uv_anim`/`light_color_multiplier`；eyelib 当前不解析 uv_anim，本轮未实现滚动）。
+- **实机**：26.1.2 召唤 `{powered:1b}` 苦力怕，蓝色 charged 层现在显示在头/身/腿；普通苦力怕
+  无该层；1.20.1 / 1.21.1 同样显示。截图：
+  `creeper_charged_baseline_2612.png`（修复前无层）、`creeper_charged_ignorelight_2612.png`、
+  `versions/1.21.1/run/debug_shots/screenshots/creeper_charged_1211.png`、
+  `versions/1.20.1/run/debug_shots/screenshots/creeper_charged_1201.png`。
+
+### 本轮验证与未覆盖
+
+- `molangCheck`：1.20.1 / 1.21.1 / 26.1.2 均 **686 expressions, 0 error(s)**。
+- qylEyelib 最终 `:test`：1.20.1 / 1.21.1 / 26.1.2 全部 **BUILD SUCCESSFUL**（`StonecutterCommentPlacementTest`
+  通过：head 槽物品的版本判断已收敛到 `EntityRenderPorts.isArmorItem`，client/render 不再出现 `//?`）。
+  `:nullawayMain` 三节点全部 BUILD SUCCESSFUL。
+- dokimobs `assemble` 三节点成功；jar 内已包含 `assets/dokimobs/animations/doki_pillager.json` 与
+  cospack 的 `ignore_lighting:true`（`versions/<node>/build/libs/dokimobs-0.3.12+...jar`）。
+- 未覆盖：CarryOn 客户端键位+右击的原始输入（已走服务端 `Player#interactOn` 事件链 +
+  `tryPickupEntity` + 渲染三层验证，`interact=Success, carry=true`）；charged 层 `uv_anim` 纹理滚动
+  （eyelib 尚不支持）；1.21.1 盔甲仅场景截图（1.20.1 与 26.1.2 分别覆盖 legacy / modern 两条
+  ArmorRenderAdapter 分支）。
