@@ -815,6 +815,10 @@ accessor.callGetWhiteOverlayProgress(state))`；`LivingEntityRendererAccessor` �
   截图：`carryon_cow_front_after_2612.png`（修复后） vs `carryon_cow_2612.png`（修复前）。
   **验证口径**：本轮走的是服务端 `tryPickupEntity` 直调 + 客户端渲染；未在自动化环境里模拟
   客户端按键+右击的完整输入链路。
+  **后续修正（2026-11-10）**：本轮只验证了「抱起 doki 生物」，漏了反向用例——dokimobs 自己的
+  `ClientEvents` 仍走坐标反查，26.1 上对 off-level 实体永远找不到，`useBuiltInRenderSystem`
+  保持默认 true，导致 **doki=false 的实体被抱起后也被画成萌化模型**。见本文末
+  「2026-11-10 CarryOn 兼容三版本收口」。
 
 ### ⑥ 闪电苦力怕 charged 层不显示 → 26.1 `query.is_powered` 写死 false
 
@@ -925,3 +929,78 @@ accessor.callGetWhiteOverlayProgress(state))`；`LivingEntityRendererAccessor` �
 
 **未覆盖**：真实盔甲 attachable 定义（仓库与 cospack 都没有；本轮的探针已删）；`BODY` 槽（狼铠）；
 Bedrock 的 ±24px 绑定偏移；非萌化实体仍走 `HumanoidArmorLayerMixin`（整件 attachable 挂单个 ModelPart）。
+
+## 2026-11-10 CarryOn 兼容三版本收口
+
+**用户要求**：修 CarryOn 兼容，且 1.20.1 / 1.21.1 / 26.1.2 三个版本都要**明确测试**（不是单节点推断）。
+
+### 复现（修复前，三版本实机，真 CarryOn）
+
+| 节点 | CarryOn | doki 生物抱起 | doki=false 生物抱起 | 结论 |
+|---|---|---|---|---|
+| 1.20.1 | forge 2.1.2.7（dev 重映射，见下） | 萌化模型 | 原版模型 | 正确 |
+| 1.21.1 | neoforge 2.2.6.13 | 萌化模型 | 原版模型 | 正确 |
+| 26.1.2 | neoforge 2.10.0 | 萌化模型 | **萌化模型（错）** | 缺陷 |
+
+- 1.20.1 数据面证据：服务端 `cow.save()` 的 NBT 含
+  `ForgeCaps.eyelib:data_attachments.eyelib:doki_data={doki:1b}`（Forge 的 `CapabilityProvider`
+  会把 capability 写进 `ForgeCaps`）；`EntityType.create(tag, level)` 造出的 off-level 假实体
+  `getOrNull(DOKI)` 读得到 `doki=true`。1.21.1 同一数据在 `neoforge:attachments` 下，同样可读。
+- 26.1.2 反向证据：`ExtractedEntityStates.STATES` 里 off-level 假实体
+  （`level.getEntity(id) != entity`）读到的 `doki=false`，但它的 `RenderData.useBuiltInRenderSystem`
+  仍为 true —— 开关没被 dokimobs 复位。
+
+### 根因（26.1 only）
+
+`TempVariantSetting.ClientEvents`（26.1 分支）只用「实体类型 + 插值坐标」在
+`level.entitiesForRendering()` 里反查被渲染的实体。CarryOn 用 `EntityType.create(NBT)` 造**不入世界**
+的假实体渲染，坐标反查永远失败 → 事件处理器直接 return，`useBuiltInRenderSystem` 保留构造默认值
+`true`。而该开关是 eyelib 是否用基岩模型接管的唯一判据，于是**所有**被抱起的受管类型实体都按萌化
+模型绘制，`doki` 附件被整体绕过（eyelib 的 `RenderLivingEventAdapter` 自己走三级解析，能找到假实体，
+所以渲染能"成功"，但用的是错的状态）。
+
+### 修复
+
+`TempVariantSetting.ClientEvents` 新增 `findRenderedEntity`，解析顺序与 eyelib
+`RenderLivingEventAdapter` **完全一致**：`sceneEntityOverride` → `ExtractedEntityStates.get(state)`
+（`extractEntity` 登记的 off-level 映射）→ 类型+坐标反查。拿到实体后再按 `doki` 附件写
+`useBuiltInRenderSystem`，于是 doki=true → 萌化、doki=false / 附件缺失 → 原版。
+解析顺序必须同序这一点写进了方法注释——两侧指向不同实体时，开关会漏写（本缺陷的成因）。
+
+### 验证（修复后，三版本实机，完整输入链路）
+
+输入链路：客户端按键 → `ServerboundCarryKeyPressedPacket` / `ServerboundInteractPacket` →
+服务端 `PlayerInteractEvent.EntityInteract` → `PickupHandler.tryPickupEntity`。1.20.1 用真实
+LSHIFT 按下（`KeyMapping.set(KEYSYM 340)`）+ 右击；1.21.1 与 26.1.2 用各自的 carry key/潜行 + 右击。
+
+| 节点 | 抱起 doki 牛 | 抱起 doki=false 牛 | 证据（`versions/<node>/run/debug_shots/screenshots/`） |
+|---|---|---|---|
+| 1.20.1 | 萌化（有角 chibi） | 原版（方块牛） | `carry_1201_doki_carried.png`、`carry_1201_nondoki_fp.png` |
+| 1.21.1 | 萌化 | 原版 | `carry_1211_fix_doki.png`、`carry_1211_fix_nondoki_fp.png` |
+| 26.1.2 | 萌化 | 原版（修复前为萌化） | `carry_2612_fix_doki.png`、`carry_2612_fix_nondoki_fp.png`（修复前对比：`carry_2612_nondoki_carried.png`） |
+
+闸门：`assemble` / `test` 三节点成功；`molangCheck` 三节点均 **686 expressions, 0 error(s)**。
+`nullawayMain` 不是 dokimobs 的任务（属 qylEyelib 的闸门），本轮未跑。
+
+### 1.20.1 复现环境（重要踩坑）
+
+Forge 1.20.1 生产 mod 是 **SRG** 命名，而 ModDevGradle dev 运行时是 **named**，直接把 CurseForge 的
+`carryon-forge-1.20.1-2.1.2.7.jar` 放进 `versions/1.20.1/run/mods` 会在 mixin apply 阶段崩：
+`@Shadow method m_20363_ ... was not located in the target class net.minecraft.world.entity.Entity`
+（`mixin.env.remapRefMap` 只重映射 refmap 值，不会重映射 mixin 类自身的成员名）。可复现做法：
+
+1. ART 重映射到 named：`AutoRenamingTool-2.0.17-all.jar --input <原jar> --output <out> --map versions/1.20.1/build/moddev/artifacts/intermediateToNamed.srg --lib versions/1.20.1/build/moddev/artifacts/forge-1.20.1-47.1.3-merged.jar`
+   （`--lib` 提供继承信息，否则 ART 处理到 `CommandCarryOn` 就抛 `Failed to execute task`）。
+2. ART 会跳过部分私有成员（例如 `Entity#hasPassenger`），再用常量池级重命名把剩余 `m_####_`/`f_####_`
+   按 srg 的 `MD:`/`FD:` 映射改成 MCP 名（注意 `FD:` 行的目标名是第 2 个字段，`MD:` 才是第 3 个——
+   弄反会把 `Z`/`I` 之类的描述符当成目标名写坏常量池，表现为 FML 报
+   `mods.toml missing metadata for modid null`）。
+3. 产物只放 `run/mods` 供 dev 复现，不改变生产语义（生产仍用原 SRG jar）。
+
+1.21.1（NeoForge ≥1.20.6）生产 jar 本身是 Mojmap，dev 可直接加载，无此问题。
+
+### 未覆盖
+
+- CarryOn 的实体堆放（`stackableEntities`）路径；
+- 抱起生物时的阴影/粒子/命名牌等附加层；
+- 26.1.2 上 Iris + 光影组合下的命中色（本轮 Iris 无光影）。

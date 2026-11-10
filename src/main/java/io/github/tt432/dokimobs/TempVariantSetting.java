@@ -29,6 +29,8 @@ import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.npc.villager.VillagerDataHolder;
 //?}
 //? if modern {
+import io.github.tt432.eyelib.bridge.client.render.adapter.ExtractedEntityStates;
+import io.github.tt432.eyelib.bridge.client.render.adapter.RenderLivingEventAdapter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.util.Mth;
@@ -288,7 +290,7 @@ public class TempVariantSetting {
         public static <T extends LivingEntity, S extends LivingEntityRenderState, M extends net.minecraft.client.model.EntityModel<? super S>>
         void onEvent(RenderLivingEvent.Pre<T, S, M> event) {
             var state = event.getRenderState();
-            LivingEntity entity = findEntityByRenderState(state.entityType, state.x, state.y, state.z, event.getPartialTick());
+            LivingEntity entity = findRenderedEntity(state, event.getPartialTick());
             if (entity == null) return;
             if (!isDokiManaged(entity)) return;
 
@@ -297,6 +299,29 @@ public class TempVariantSetting {
             EntityDokiData dokiData = DataAttachmentHelper.getOrNull(DokiData.DOKI.get(), entity);
             // 每帧双向设置：doki 同步晚于首帧渲染时，避免 false 粘性导致永久原版渲染
             RenderData.getComponent(entity).setUseBuiltInRenderSystem(dokiData != null && dokiData.doki());
+        }
+
+        /**
+         * 26.1+ RenderLivingEvent 不再直接暴露实体，按三级顺序还原「正在被渲染的实体」，
+         * 必须与 eyelib {@code RenderLivingEventAdapter} 的解析顺序完全一致——两侧指向不同实体时，
+         * 本类会漏写 {@code useBuiltInRenderSystem}（该开关默认 true），
+         * 结果就是 doki=false 的实体也被画成萌化模型。
+         * <ol>
+         *   <li>场景覆盖：clientsmoke FBO 场景显式指定渲染的实体；</li>
+         *   <li>{@code extractEntity} 登记的 off-level 映射：CarryOn 等模组用不入世界的 NBT
+         *       假实体渲染（抱起萌化生物），坐标反查永远找不到它；</li>
+         *   <li>世界实体：按类型 + 插值坐标在 {@link #findEntityByRenderState} 反查。</li>
+         * </ol>
+         */
+        @Nullable
+        private static LivingEntity findRenderedEntity(LivingEntityRenderState state, float partialTick) {
+            LivingEntity sceneEntity = RenderLivingEventAdapter.sceneEntityOverride;
+            if (sceneEntity != null) return sceneEntity;
+
+            LivingEntity extracted = ExtractedEntityStates.get(state);
+            if (extracted != null) return extracted;
+
+            return findEntityByRenderState(state.entityType, state.x, state.y, state.z, partialTick);
         }
 
         /**
