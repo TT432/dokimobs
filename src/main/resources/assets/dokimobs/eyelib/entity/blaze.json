@@ -49,7 +49,8 @@
       },
       "render_controllers": [
         "controller.render.doki_blaze"
-      ]
+      ],
+      "enable_attachables": true
     }
   }
 }

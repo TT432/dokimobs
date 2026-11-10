@@ -843,3 +843,85 @@ accessor.callGetWhiteOverlayProgress(state))`；`LivingEntityRendererAccessor` �
   `tryPickupEntity` + 渲染三层验证，`interact=Success, carry=true`）；charged 层 `uv_anim` 纹理滚动
   （eyelib 尚不支持）；1.21.1 盔甲仅场景截图（1.20.1 与 26.1.2 分别覆盖 legacy / modern 两条
   ArmorRenderAdapter 分支）。
+
+## 2026-11-09 追记：溺尸盔甲「附加不正确」＝ vanilla 人形盔甲几何与萌化比例不符
+
+**用户要求**：以溺尸复核萌化生物的盔甲 attachable 附加不正确。
+
+**结论**：挂点（骨骼关节）没错，错的是几何来源。萌化实体的盔甲从不走 attachable：
+`ArmorAttachmentRenderer` 把 vanilla JE 人形盔甲部件按名绑到持有者骨骼关节上，几何尺寸恒为 vanilla
+玩家（外甲每面 +1px、护腿内甲 +0.5px、头盔帽层再 +0.5px，见 `LayerDefinitions` 的
+`OUTER/INNER_ARMOR_DEFORMATION`）。萌化模型是 chibi 比例，于是有甲/无甲 A/B 可见：**甲片埋进躯干、
+袖甲比手臂粗长约 2 倍、两条腿甲并成一柱并低于脚面、盔顶高出头顶 0.156 格**。
+
+**实机证据（1.20.1 / 0.3.13 构建，同机位同实例，NoAI + 铁套装，夜视下拍摄）**
+`versions/1.20.1/run/debug_shots/screenshots/drowned_nv_noarmor`（无甲） vs `drowned_nv_armor`（有甲）。
+形状之外还有一条旁证：正午无甲时躯干着火，装上甲后火焰被甲片遮住 → 甲片确实渲染且覆盖躯干，
+问题不是「没画」。本轮只实机 1.20.1；1.21.1 / 26.1.2 未复测（失败机理与版本无关，版本分支只差
+纹理与部件集合）。
+
+**数值（`geometry.drowned2`，模型空间，格；关节 head 1.809 / body 1.125 / arm 1.672 / leg 1.0625）**
+
+| 部件 | 萌化模型 AABB（相对关节） | 盔甲几何 AABB | 结果 |
+|---|---|---|---|
+| 头（HEAD = head+hat） | x ±0.36，y -0.064..+0.438，z -0.286..+0.233 | x ±0.344，y -0.094..+0.594，z ±0.344 | 盔顶高出头 0.156；头比盔宽 0.016/侧 |
+| 躯干（CHEST body，锚在 head pivot） | x -0.354..+0.453，y -0.13..+0.748，z -0.244..+0.393 | x ±0.313，y -0.813..+0.063 | 高度贴躯干（颈部锚点所致），横向窄 0.09~0.14、进深窄 0.13 → 埋在躯干内，项链/衣领布在甲片之前 |
+| 右臂（CHEST right_arm） | 0.26 × 0.45 × 0.28 | 0.375 × 0.875 × 0.375 | 粗 1.4×、长 1.9×；甲尖低于手掌约 0.30 |
+| 右腿（LEGS right_leg） | 0.234 × 0.5 × 0.272 | 0.375 × 0.75 × 0.375 | 两片在 x=0 相接成单柱；甲底低于脚面 0.31 |
+
+**同一次复核确认的三条结构性缺口**
+
+1. 所有萌化实体 json 都没有 `enable_attachables`，`BrClientEntity` 的 codec 默认 `false`
+   （`BrClientEntity.java:181`）→ `AttachableResolver.isAttachableEnabled` 对萌化 holder 恒 false。
+   运行态核对：`minecraft:drowned ce=minecraft:drowned enable_attachables=false`。因此盔甲/手持
+   attachable 在萌化实体上完全不参与；`ArmorAttachmentRenderer` 也不查 attachable，`binding` Molang
+   无求值点。
+2. 非萌化路径 `HumanoidArmorLayerMixin` 把**整件** attachable 挂在单个 `ModelPart`
+   （CHEST→body、LEGS/FEET→rightLeg）→ 多骨骼 attachable（胸甲=body+双臂、护腿=body+双腿）刚性跟随一根骨。
+3. 骨骼名硬编码 head/body/rightarm/leftarm/rightleg/leftleg。运行态 `geometry.doki_pillager`
+   bones=67、`body=false`（只有 allbody/upbody）；wandering_trader/wolf/blaze 同样无 `body`，
+   guardian 无 `head` → 这些生物的胸甲躯干与护腿躯干整件不画。
+
+**用户决策（2026-11-10）**：选 (a) 走 Bedrock attachable 语义——按 attachable 定义取几何 + 逐骨骼绑定 +
+`binding`，萌化实体开 `enable_attachables`；**本轮范围 = 只打通管线，盔甲外观维持现状**（本仓库/cospack
+没有任何盔甲 attachable 定义，故原版甲仍走 vanilla 人形盔甲回退）。落地记录见下一节。
+
+## 2026-11-10 盔甲槽 attachable 管线打通（eyelib 21.1.35 + dokimobs 0.3.13）
+
+**eyelib 侧**（ADR-0043 §5.5 有决策细节）：
+
+- `AttachableItemRenderSetup.renderAttachableBound`：盔甲槽 attachable 按基岩语义逐骨骼绑定渲染。锚点规则：
+  骨骼 `binding` Molang 求值出持有者骨骼名 → 用该骨骼；否则骨骼名与持有者同名（`head`/`body`/`rightarm`…）
+  → 用同名骨骼；都没有 → 持有者模型根位姿（基岩模型空间）。骨骼帧 = 持有者骨骼帧 × `T(持有者 pivot)` ×
+  `T(-挂载物 pivot)`，即挂载物骨骼 pivot 对齐到持有者骨骼 pivot。
+- `EntityRenderOrchestrator.renderSlotAttachables`：HEAD/CHEST/LEGS/FEET 先查 `AttachableResolver`，
+  命中则由 attachable 接管该槽，`HeadItemRenderer`（头部物品）与 `ArmorAttachmentRenderer`（vanilla 人形甲）
+  跳过该槽，避免双画。
+- 每个顶层骨骼单独渲染，用 `part_visibility` 逐骨骼关掉其它子树（`PreBoneFrame` 不继承父骨骼隐藏）。
+- `ModelPoseTransforms.bedrockRootPose` 提供「持有者根位姿 → 基岩模型空间」换算。
+- `binding` 求值抽出 `AttachableItemRenderSetup.bindingTargetName`，clientsmoke 断言它按当前
+  `context.item_slot` 求值（夹具 `q.item_slot_to_bone_name(context.item_slot)` → `rightitem`）。
+
+**dokimobs 侧**：22 个 cospack 条目 + 5 个 bbmodel 实体（`assets/dokimobs/eyelib/entity/*.json`）全部
+`enable_attachables: true`（脚本 `work/pack_patch_enable_attachables_20261109.py`）；`eyelib_version`
+升到 `21.1.35`。
+
+**验证（三节点）**
+
+| 节点 | 网格 | 结果 | 证据 |
+|---|---|---|---|
+| 1.20.1 | 探针 attachable：HEAD 槽木棍 → 几何 `binding: "'head'"`、CHEST 槽打火石 → 骨骼名 `body`（同名绑定）；同时穿铁护腿/铁靴（回退路径） | 头顶 6px 方块（木棍贴图）+ 胸口方块出现在正确位置；铁甲正常；`binding''head'' -> head`、`stick → minecraft:stick`、`flint → minecraft:flint`、铁甲 `attachable=null` | `versions/1.20.1/run/debug_shots/screenshots/attachable_probe_front2` |
+| 1.21.1 | 同一探针（4px 方块 + 红石贴图便于观察） | 头顶方块可见；铁护腿/靴正常 | `versions/1.21.1/run/debug_shots/screenshots/attachable_probe_1211_red2` |
+| 26.1.2 | 同一探针 | 头顶方块可见；铁护腿/靴正常 | `versions/26.1.2/run/debug_shots/screenshots/attachable_probe_2612.png` |
+
+其余闸门：eyelib 三节点 `compileJava` / `:test` / `:nullawayMain` 全绿（`GATE_OK`）；eyelib clientsmoke
+1.20.1 **12/12 passed**（含新断言 `bone root binding -> rightitem`）；dokimobs `assemble` 三节点成功，
+最终产物不含探针资源（`assets/probe` 已删除）。
+
+**运行时发现（未修，记反馈）**：1.21.1 上把 6px 立方体的贴图换成 16x16 后，重载时
+`ModelBakeInfo.pixelAnyMatch` 读取越界像素 `(17,6) outside of image bounds (16,16)` 抛
+`IllegalArgumentException` 使客户端崩溃（4px 立方体正常）。这是几何 UV 越界时烘焙缺边界检查的既有缺陷，
+与本轮挂载管线无关。
+
+**未覆盖**：真实盔甲 attachable 定义（仓库与 cospack 都没有；本轮的探针已删）；`BODY` 槽（狼铠）；
+Bedrock 的 ±24px 绑定偏移；非萌化实体仍走 `HumanoidArmorLayerMixin`（整件 attachable 挂单个 ModelPart）。
