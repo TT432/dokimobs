@@ -4,7 +4,7 @@
 依赖项 `eyelib` 是独立项目（`../qylEyelib`），它的发版见该项目 `.opencode/skills/eyelib-release/SKILL.md`；本文档只覆盖 dokimobs 侧。
 
 ## 版本与坐标
-- 版本唯一来源：`gradle.properties` 的 `mod_version`（当前 `0.3.13`）。
+- 版本唯一来源：`gradle.properties` 的 `mod_version`（当前 `0.3.14`）。
 - 节点：`stonecutter.properties.toml` 的 `1.20.1`（legacy Forge）、`1.21.1`、`26.1.2`（NeoForge）。
 - 产物名：`dokimobs-${mod_version}+${minecraft_version}-${forge|neoforge}.jar`。
 - CurseForge 项目：ID `1234919`，slug `dokimobs`。
@@ -118,3 +118,7 @@ cmd.exe /c gradlew.bat collectArtifacts --no-daemon --console=plain
 - 上传结果（本次 0.3.13）：`1.20.1 → 9526781`、`1.21.1 → 9526794`、`26.1.2 → 9526795`；脚本 `work/cf_upload_0.3.13.py`、`work/cf_wait_verify_0.3.13.py`、changelog `work/cf-0.3.13-changelog.md`、ID 快照 `work/cf-0.3.13-ids.json`。2026-11-09 21:49:07 CST Python/requests 直连 legacy Upload API 三节点串行成功（先 `--dry-run`，共约 170 s）。**前置依赖**：本次联动发布 eyelib 21.1.34，其 CF 三节点 `9526576` / `9526579` / `9526580` 于 21:46:12 CST 全部可见（见 eyelib skill 发布记录）。本次内容：掠夺者不祥旗帜、头部独立转动、弩按主手显隐、skeleton 等 body 盔甲颈部锚点、CarryOn off-level 实体接管、26.1 charged creeper 闪电层。
 - 本次 0.3.13 构建与产物校验：`clean assemble --no-daemon --console=plain --no-build-cache`（52 s，32 actionable tasks 全部 executed，三节点 `compileJava` 均真实执行、无 `FROM-CACHE`，`BUILD SUCCESSFUL`）；`collectArtifacts` 汇总 6 个 jar（dokimobs 0.3.13 三节点 + eyelib 21.1.34 三节点）；三个 dokimobs jar 与各自 `build/libs` 的 sha256 逐一相符（`e079aa0f…` / `9dd2fe3f…` / `4fa2bcd7…`，大小 9653935 / 9666964 / 9668621 B）；`mods.toml` / `neoforge.mods.toml` 的 `version = 0.3.13`、`eyelib versionRange = [21.1.34,)`、MC 范围 `[1.20.1, 1.21)` / `[1.21.1, 1.22)` / `[26.1.2, 26.2)` 均正确；三个 jar 均含 `assets/dokimobs/animations/doki_pillager.json`。
 - 公开验收（0.3.13）：2026-11-09 22:05 CST 公开 API `files` 三节点全部可见，`fileLength` 精确一致（9653935 / 9666964 / 9668621），`releaseType = 1`；文件页 `9526795` 的 `What's new` 已渲染完整 changelog（含「掠夺者不祥旗帜」「前置：需要 eyelib 21.1.34 或更高版本」，快照 `work/cf-0.3.13-file-9526795.txt`）。
+
+- 上传结果（本次 0.3.14）：`1.20.1 → 9537947`、`1.21.1 → 9537949`、`26.1.2 → 9537952`；脚本 `work/cf_upload_0.3.14.py`、`work/cf_wait_verify_0.3.14.py`、changelog `work/cf-0.3.14-changelog.md`、ID 快照 `work/cf-0.3.14-ids.json`。2026-11-10 三节点串行 43 s（Python/requests 直连 legacy Upload API，先 `--dry-run`）。**前置依赖**：本次联动发布 eyelib 21.1.35，其 CF 三节点 `9537831` / `9537833` / `9537835` 于 14:52:09 全部可见（见 eyelib skill 发布记录）。本次内容：27 个萌化实体开启 `enable_attachables`（配合 eyelib 21.1.35 的盔甲槽 attachable 渲染；原版甲仍走 vanilla 回退，外观不变）。
+- 本次 0.3.14 构建与产物校验：`clean assemble --no-daemon --console=plain --no-build-cache`（32 s，31 executed，三节点 `compileJava` 均真实执行、无 `FROM-CACHE`，`BUILD SUCCESSFUL`）；`collectArtifacts` 汇总 6 个 jar（dokimobs 0.3.14 三节点 + eyelib 21.1.35 三节点）；三个 dokimobs jar 与各自 `build/libs` 的 sha256 逐一相符（`b6592003…` / `1b4174e6…` / `909b5223…`，大小 9654686 / 9667714 / 9669371 B）；`mods.toml` / `neoforge.mods.toml` 的 `version = 0.3.14`、`eyelib versionRange = [21.1.35,)` 均正确；三个 jar 内 `pack.cospack` 与工作树 sha256 一致且含 `enable_attachables`。
+- 公开验收（0.3.14）：2026-11-10 15:06:15 CST `files/all` 三文件全部可见（轮询 12m14s，快照 `work/cf-0.3.14-files-page.txt`），各自 `Latest release`；文件页 `9537952` 显示 `0.3.14`、`NeoForge`、`26.1.2`、`Release`，`What's new` 已渲染完整 changelog（含 `enable_attachables` 段，快照 `work/cf-0.3.14-file-9537952.txt`）；jar 大小与本地一致（9654686 / 9667714 / 9669371 B）。
