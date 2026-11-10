@@ -1004,3 +1004,51 @@ Forge 1.20.1 生产 mod 是 **SRG** 命名，而 ModDevGradle dev 运行时是 *
 - CarryOn 的实体堆放（`stackableEntities`）路径；
 - 抱起生物时的阴影/粒子/命名牌等附加层；
 - 26.1.2 上 Iris + 光影组合下的命中色（本轮 Iris 无光影）。
+
+### 2026-11-10 追记：off-level 实体的动画/render controller 与第一人称渲染（eyelib 21.1.36）
+
+**用户实机反馈（26.1.2 + CarryOn 2.10.0）**：① 第一人称抱起生物完全不显示模型；② 第三人称抱起生物缺少动画与
+render controller —— 萌化苦力怕露出本应被 RC 隐藏的 TNT 部件，姿态静止。
+
+**根因**
+
+- 动画 / RC：eyelib 的 `SetupStage`/`TickStage` 每帧只遍历 `level.entitiesForRendering()`。CarryOn 的假实体不在世界里，
+  只画得出 NBT 里序列化的静态 `render_data` 组件：RC（`part_visibility`/模型选择）与动画采样都没有。而且假实体
+  **每次渲染都新建**（`carry.getEntity()` → `EntityType.create`），`query.anim_time` 恒 0、播放状态每帧重置，
+  所以单纯补 tick 仍然静止（实测模型区逐帧像素差 = 0）。
+- 第一人称：26.1 的 GPU 蒙皮把绘制记录排队，等 `LevelRenderer` 阶段事件（`AfterOpaqueFeatures` /
+  `AfterTranslucentFeatures`）flush。CarryOn 在第一人称手持 pass（`RenderHandEvent`）里 `submit`，比窗口晚，
+  记录在下一帧首被当作泄漏丢弃（日志 `[skinning] N solid ... leaked across frame boundary`），
+  而 writer 已经跳过顶点写入 → 该帧什么都没有（vanilla 路径不受影响，所以之前只测 vanilla 时看起来正常）。
+
+**修复（eyelib 21.1.36）**
+
+1. `EntityRenderOrchestrator.renderEntityFromParams`：对 off-level 实体按帧补 `setup` + `tickEntity`
+   （`setupFrameStamp` 同帧去重；无 clientEntity 的未受管类型提前返回）。动画状态按实体 UUID（NBT 里稳定）缓存，
+   用 `AnimationComponent.adoptFrom` 接回上一帧的 `animate`/`animationData`/`effects`；随后 `setup` 因
+   `serializableInfo` 等值短路，不会重置状态 → 时间轴连续推进。
+2. `NgSkinningManager`：新增阶段窗口标志（`RenderFrameEvent.Pre` 开、`RenderLevelStageEvent.AfterLevel` 关）。
+   窗口外且无 FBO override 时 `createSession` 返回 null，回退经典 CPU 路径 → 顶点写进 vanilla 批次，
+   由手持 pass 自己的 `renderAllFeatures` 绘出。
+
+**验证（三版本实机，抱萌化苦力怕，RC + 动画 + 第一人称）**
+
+| 节点 | RC（TNT 部件隐藏） | 动画（模型区逐帧像素差 y>180） | 第一人称 |
+|---|---|---|---|
+| 1.20.1 | 是 | 769 / 1096 px | 显示（chibi 模型） |
+| 1.21.1 | 是 | 112 / 74 px | 显示 |
+| 26.1.2 | 是 | 529 / 529 px（修前 0） | 显示（修前无模型） |
+
+截图：`versions/26.1.2/run/dbg/carry4/{anim0-2,fp}.png`、`versions/1.21.1/run/dbg/carry5/screenshots/`、
+`versions/1.20.1/run/dbg/carry6/screenshots/`、`1.20.1/run/dbg/carry7/screenshots/`（非萌化苦力怕第一人称仍是 vanilla）。
+对照基线：世界内萌化苦力怕 `versions/26.1.2/run/dbg/carry2/world_creeper_fp.png`（无 TNT 部件）。
+doki=false 的实体仍走 vanilla：`1.20.1/run/dbg/carry7/screenshots/nondoki_fp.png`。
+
+闸门：eyelib 三节点 `compileJava`/`test`/`nullawayMain` 全绿；dokimobs 三节点 build/test 成功，
+`molangCheck` 三节点 **686 expressions, 0 error(s)**。
+
+**未覆盖**：动画状态按 UUID 缓存只对「同 UUID 反复渲染」的 off-level 实体生效（CarryOn 的假实体满足）；
+若某个模组每帧换 UUID，动画仍会静止。CarryOn 实体堆放路径未测。
+
+**环境备注**：1.21.1 dev 启动偶发失败——Iris 1.8.12 的 jarjar `fabric_api_base` 要求
+`neoforge >= 21.1.169`，而项目 pin 21.1.115；同一构建重试一次即进标题界面（与本轮改动无关）。
