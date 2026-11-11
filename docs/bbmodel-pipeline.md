@@ -1052,3 +1052,65 @@ doki=false 的实体仍走 vanilla：`1.20.1/run/dbg/carry7/screenshots/nondoki_
 
 **环境备注**：1.21.1 dev 启动偶发失败——Iris 1.8.12 的 jarjar `fabric_api_base` 要求
 `neoforge >= 21.1.169`，而项目 pin 21.1.115；同一构建重试一次即进标题界面（与本轮改动无关）。
+
+## 2026-11-11 CarryOn 兼容收口：一帧内重复提交与 render state 坐标反查串实体
+
+**用户报告**：视频 `屏幕录制 2026-11-10 154946.mp4`（26.1.2 + CarryOn，真实客户端 + 光影）里，本体渲染正常，
+但天空里多出两片「属于僵尸和溺尸」的甲，随空闲动画缓慢移动（#795–#815 最清楚；#130 还能看到一份
+vanilla 僵尸 `本体 + 彩虹纹理胸甲`）。要求：修 CarryOn 兼容，且 1.20.1 / 1.21.1 / 26.1.2 三版本**明确测试**。
+
+### 复现结论（未能原样复现，按逐帧记录修）
+
+本 dev 环境无法复刻录像现场，两个环境限制都写在这里：
+
+- 录像内世界在真实客户端，本机所有 dev 存档都没有那片丛林海岸；
+- 26.1.2 dev 开 Iris 光影直接崩（`Iris/FATAL Missing program minecraft:pipeline/gui_text`，
+  `iris.properties` 设 `enableShaders=true` 后必现），无法在光影组合下复测。
+
+于是按用户允许的路线（「复现不到就按当前猜测 + 逐帧记录修」）用探针（临时 `ArmorProbe`，21.1.38，发版前已删）
+逐帧记录，锁定两条**可量化**的异常：
+
+1. **同一实体一帧内被提交 2–3 次，且姿态完全相同**。26.1 的 `LevelRenderState.entityRenderStates` 只在
+   `renderLevel` 末尾 `reset()`，一帧里 `extractLevel` 被调用多次就会累积同一实体的多份 render state
+   （实测 `MULTI id=1 count=3 submits=[.../1.50, .../1.50, .../1.50]`，同格 5 只僵尸被降到 3 份状态）；
+   CarryOn 第一人称每次 main/offhand 各提交一次携带实体，也是同帧两次。
+2. **同格同类型生物的 render state 会解析到同一个实体**。26.1 的 `RenderLivingEvent` 不携带实体，
+   `RenderLivingEventAdapter` 按「类型 + 插值坐标（±0.5 格）」在 `level.entitiesForRendering()` 反查；
+   两只同类型生物相距 <1 格时多份 state 会全部解析到同一个实体，该实体的模型与盔甲被画在每个 state 的位置上
+   （屏幕上就是「多出来的一份本体/甲」）。实测两只相距 0.5 格的溺尸分别穿铁甲与金甲时，旧逻辑只会画出其中一套。
+
+同时逐帧记录也**排除**了另外两种猜测：单次 `renderComponents` 内盔甲相对模型根最大 <0.5 格（`FAR=0`），
+以及「画了甲但本体一条几何都没提交」（`NOGEOM attachmentsDrawn>0 = 0`）。
+
+### 修复（eyelib 21.1.39）
+
+1. `EntityRenderOrchestrator.renderEntityFromParams` 新增**同帧同姿态去重**：按「实体身份 + 实体根位姿指纹」
+   （相机相对平移 + 旋转/缩放前三列）记录本帧已成功提交的姿态，命中后按「已渲染」返回（调用方据此取消
+   vanilla 兜底，否则重复状态会退回 vanilla 再画一次）。只记成功提交的姿态，避免首帧烘焙未就绪被误判。
+2. `EntityRenderDispatcherMixin` 改为对**所有**活体 render state 登记 `state → 实体`，`RenderLivingEventAdapter`
+   优先按身份解析；坐标反查保留为兜底（dev/smoke 的 FBO 场景仍需要它）。
+
+### 验证（三节点实机，带探针计数）
+
+| 节点 | 同帧重复提交（`MULTI`） | 甲离体（`FAR`） | 甲无本体（`NOGEOM>0`） | 抱起带甲生物 第一/第三人称 |
+|---|---|---|---|---|
+| 26.1.2 | 修前 54+ 条 → 修后 **0** | 0 | 0 | 各一份，位置正确 |
+| 1.21.1 | **0** | 0 | 0 | 各一份，位置正确 |
+| 1.20.1 | **0** | 0 | 0 | 各一份，位置正确 |
+
+输入链路：服务端 `PickupHandler.tryPickupEntity`（真实 CarryOn，`ok=true`、实体 `removed=true`），
+客户端第一/第三人称截图。截图：
+
+- 26.1.2：`versions/26.1.2/run/dbg/carry_2612_fix/{stacked_distinct3,fp_carry,tp_carry}.png`
+  （`stacked_distinct3.png` 是两只相距 0.5 格的溺尸，铁甲与金甲**各自**显示）
+- 1.21.1：`versions/1.21.1/run/dbg/carry_fix_1211b/screenshots/{husk_world,husk_fp,husk_tp}.png`
+- 1.20.1：`versions/1.20.1/run/dbg/carry_fix_1201/{husk_world,husk_fp,husk_tp}.png`
+
+### 环境备注（节点间依赖版本陷阱）
+
+- `versions/1.21.1/run/mods` 里**钉着** `eyelib-21.1.38+…jar` 与 `clientsmoke-…jar`，改 mavenLocal 不生效；
+  换版本时必须手工替换这两个 jar，否则实测跑的是旧 eyelib（本轮第一次 1.21.1 实测就踩中，日志无探针输出才发现）。
+- `versions/1.20.1` 的 moddev 运行 classpath 由 Gradle 解析结果生成，`eyelib_version` 变了要重跑
+  `:1.20.1:prepareClientRun :1.20.1:createClientLaunchScript`，否则 classpath 仍是旧版本。
+- 1.20.1 的 `CarryOnDataManager.getCarryData` 每次返回**反序列化的新对象**，改完必须 `setCarryData` 才生效；
+  且 `setCarryData` 会把 `tick` 记成当前 tick，`canCarryGeneral` 拒绝同 tick 拾取——自动化拾取要分两个 tick 调用。
