@@ -1114,3 +1114,145 @@ vanilla 僵尸 `本体 + 彩虹纹理胸甲`）。要求：修 CarryOn 兼容，
   `:1.20.1:prepareClientRun :1.20.1:createClientLaunchScript`，否则 classpath 仍是旧版本。
 - 1.20.1 的 `CarryOnDataManager.getCarryData` 每次返回**反序列化的新对象**，改完必须 `setCarryData` 才生效；
   且 `setCarryData` 会把 `tick` 记成当前 tick，`canCarryGeneral` 拒绝同 tick 拾取——自动化拾取要分两个 tick 调用。
+
+## 2026-11-12 手持物挂载目标缺失（僵尸村民手持物不显示）+ 原版渲染的代理 attachable + 26.1.2 重复渲染体检
+
+**用户要求**：① 修僵尸村民手持物品不显示；② 说明「原版渲染是否由代理 attachable 管理」，若已是则查
+attach 目标是否存在（**对每个模型都做一次检查**）；③ 之后再检查 26.1.2 是否有重复渲染。
+
+### ① 当前实现（原状，回答「是不是基于代理」）
+
+**不是**。原版装备渲染是 `eyelib` 里三条**各自硬编码**的回退路径，槽位归属由
+`EntityRenderOrchestrator.renderAttachments` 手写调用顺序决定：
+
+| 路径 | 槽位 | 挂载目标 | 缺目标时 |
+|---|---|---|---|
+| `HeadItemRenderer` | HEAD（非盔甲物品） | 硬编码 `head` | 静默返回 |
+| `ArmorAttachmentRenderer` | CHEST/LEGS/FEET/HEAD（`ArmorItem`） | 部件名→骨骼名（`body`→`body`，胸甲锚点用 `head` pivot=颈部） | 静默跳过该部件 |
+| `HandItemRenderer` | MAINHAND/OFFHAND | 硬编码 `rightitem`/`leftitem` | **静默返回（本次缺陷）** |
+
+真正的 `minecraft:attachable`（`AttachableResolver`）只在物品有 attachable 定义时接管，
+本仓库/cospack 没有任何 attachable 定义，所以盔甲与手持物从来没走过 attachable 管线。
+
+### ② 根因（白盒）
+
+`HandItemRenderer` 取 `GlobalBoneIdHandler.get("rightitem")` 后查 `model.allBones()`：
+`minecraft:zombie_villager` / `minecraft:villager` 的 15 个职业模型**既无 `rightitem` 也无 `leftitem`**
+（同套动画 `animation.mdsj_zombie.attack` 已在驱动 `rightitem`，骨骼缺失导致手持物与挥击都失效），
+于是每次渲染直接 return。运行态证据（1.20.1 实机 eval）：`geometry.weapon_smith n=70 R=false L=false`。
+
+**修复后踩到的第二个坑（重要）**：`geometry.unskilled` / `geometry.farmer` / … / `geometry.tool_smith` 等
+**14 个几何名在 `minecraft:villager` 与 `minecraft:zombie_villager` 两个条目里同名重复**，而 eyelib 的
+`ModelManager` 全局按名注册（后写覆盖先写）。只补 `zombie_villager` 一方后运行态仍是
+`n=70 R=false`——必须**两个实体一起补**。此约束写进了补丁脚本注释。
+
+### ③ 逐模型挂载目标审计（全部 27 个实体 / 53 个模型）
+
+审计脚本：`work/audit_attach_targets.py`（`--md` 输出下表；eyelib 侧另有运行时入口
+`ProxyAttachments.audit(model)`）。✅ = 解析到骨骼（含候选链兜底），❌ = 该模型无对应挂载目标。
+
+| 实体 | 模型 | mainhand | offhand | head_item | armor_chest | armor_legs | armor_feet |
+|---|---|---|---|---|---|---|---|
+| `minecraft:phantom` | `geometry.mdsj_phantom` | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
+| `minecraft:bee` | `geometry.mdsj_bee` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| `minecraft:cow` | `geometry.cow_gsl` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| `minecraft:spider` | `geometry.mdsj_spider.v1.8` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:spider` | `geometry.mdsj_spider.v2` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:llama` | `geometry.llama.mdsj` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| `minecraft:chicken` | `geometry.chicken2` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:skeleton` | `geometry.mdsj_skeleton` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:zombie_villager` | `geometry.unskilled` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:zombie_villager` | `geometry.farmer` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:zombie_villager` | `geometry.fisherman` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:zombie_villager` | `geometry.shepherd` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:zombie_villager` | `geometry.fletcher` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:zombie_villager` | `geometry.librarian` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:zombie_villager` | `geometry.cartographer` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:zombie_villager` | `geometry.cleric` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:zombie_villager` | `geometry.armorer` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:zombie_villager` | `geometry.weapon_smith` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:zombie_villager` | `geometry.z_tool_smith` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| `minecraft:zombie_villager` | `geometry.butcher` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:zombie_villager` | `geometry.leatherworker` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:zombie_villager` | `geometry.stonemason` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:zombie_villager` | `geometry.nitwit` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:sheep` | `geometry.sheep2` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| `minecraft:sheep` | `geometry.sheep_sheared2` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| `minecraft:husk` | `geometry.mdsj_husk` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:creeper` | `geometry.creeper2` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:creeper` | `geometry.creeper.charged2` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:stray` | `geometry.mdsj_stray` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:cave_spider` | `geometry.mdsj_cave_spider` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:villager` | `geometry.unskilled` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:villager` | `geometry.farmer` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:villager` | `geometry.fisherman` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:villager` | `geometry.shepherd` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:villager` | `geometry.fletcher` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:villager` | `geometry.librarian` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:villager` | `geometry.cartographer` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:villager` | `geometry.cleric` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:villager` | `geometry.armorer` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:villager` | `geometry.weapon_smith` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:villager` | `geometry.tool_smith` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:villager` | `geometry.butcher` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:villager` | `geometry.leatherworker` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:villager` | `geometry.stonemason` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:villager` | `geometry.nitwit` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:pig` | `geometry.pig2` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| `minecraft:drowned` | `geometry.drowned2` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:zombie` | `geometry.zombie_anim` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:trader_llama` | `geometry.llama.mdsj` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| `minecraft:bogged` | `geometry.mdsj_bogged` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `minecraft:mooshroom` | `geometry.mdsj_mooshroom` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| `minecraft:enderman` | `geometry.mdsj_enderman` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| `minecraft:warden` | `geometry.mdsj_warden` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| `bbmodel:blaze` | `-` | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| `bbmodel:guardian` | `-` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| `bbmodel:pillager` | `-` | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ |
+| `bbmodel:wandering_trader` | `-` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| `bbmodel:wolf` | `-` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+
+**结论**：
+- 手持物缺口已在本次补齐：`zombie_villager`/`villager`（rightitem+leftitem×15 模型）、
+  `zombie`/`husk`/`stray`（镜像 leftitem）。`skeleton`/`bogged` 靠候选链的 `lefthand` 即可解析，无需补骨。
+- 仍缺且**属结构性**（无可用骨骼，非本次可修）：`bbmodel:pillager`/`bbmodel:blaze` 主手（无手骨骼，
+  掠夺者的弩是烘焙几何）、`phantom` 头饰（无 `head`）、14 个模型的 `armor_legs`（无 `body` 骨骼）、
+  sheep/guardian/enderman 的 `armor_feet`（无 `rightleg`）。这些在审计表里显式保留，不做原点兜底。
+
+### ④ eyelib 侧：原版渲染收敛为「代理 attachable」（21.1.40）
+
+新增 `ProxyAttachable` / `ProxyAttachments`：每个原版渲染类别声明一次「管哪个槽 / 需要哪些持有者骨骼
+（候选链）/ 用哪种几何」，`ProxyAttachments.render` 统一裁决槽位归属（真实 attachable 命中的槽整条跳过，
+防双画），手持物候选链 = `rightitem|leftitem` → `righthand|lefthand` → `righthandlocator|lefthandlocator`
+（**不含**前臂/手关节骨：pivot 在肩肘上，会把物品摆到关节）。细节见 eyelib `ADR-0043 §5.6`。
+
+### ⑤ 26.1.2 重复渲染体检
+
+先做代码面清点：`renderComponents → renderAttachments` 只有一条调用链（`renderEntityFromParams`
+→ `SimpleRenderAction.render`），每帧每实体一次；`ArmorRenderAdapter.pieces` 每槽位部件集合互不重叠
+（LEGS/FEET 虽都用双腿骨骼，但分别是内/外甲几何）；`skipIfUnbaked` 没有任何调用点，
+所以「画了挂载物但本体没提交」在当前代码里不可达。21.1.39 的同帧同姿态去重仍是唯一防线。
+
+新增两个诊断计数（eyelib `EntityRenderOrchestrator`，dev 读取）并在实机测量：
+
+| 节点 | 场景 | 实体渲染次数 | 同帧同姿态重复（`dup`） | 挂载物无本体（`attNoBody`） |
+|---|---|---|---|---|
+| 26.1.2 | 130 只活体（多只僵尸/溺尸/骷髅带铁甲与手持物）+ Sodium 0.9.2 + Iris（无光影） | 87507 | **0** | **0** |
+| 26.1.2（前一轮重载场景） | 同世界重启后 4 只有甲生物特写 | 113636 | **0** | **0** |
+
+截图（三节点，A/B = 主手清空 vs 主手石头 + 副手铁剑）：
+`versions/1.20.1/run/debug_shots/screenshots/{fix_a_empty_1201,fix_b_stone_1201}.png`、
+`versions/1.21.1/run/debug_shots/screenshots/fix_1211_items.png`、
+`versions/26.1.2/run/debug_shots/screenshots/{fix26_a_empty,fix26_b_stone,zombie_offhand_2612}.png`。
+
+**未覆盖**：Iris 开光影（dev 环境必崩，见 2026-11-11 记录）；CarryOn 抱起路径（本轮 `canCarryGeneral`
+因 `pickupHostileMobs=false` 被拒，未在本场景复测；被抱起的带甲生物仍沿用 21.1.39 的去重结论）；
+玩家实机上报的「意外盔甲」录像仍无法在本机世界复现。
+
+### ⑥ 闸门与产物
+
+- eyelib：三节点 `compileJava` / `:test` / `:nullawayMain` 全绿（含新增 `ProxyAttachmentsTest`）；
+  `21.1.39 → 21.1.40`（clientsmoke 同步 21.1.40 后先发布到 mavenLocal）。
+- dokimobs：三节点 `assemble` 成功、`test` 通过、`molangCheck` 三节点 **686 expressions, 0 error(s)**
+  （`molangCheck` 在 version 子项目里跑需传绝对路径：
+  `-PmolangTarget=E:/_ideaProjects/dokimobs/src/main/resources/assets/dokimobs`）。

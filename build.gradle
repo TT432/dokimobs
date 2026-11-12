@@ -336,7 +336,10 @@ tasks.register('molangCheck', JavaExec) {
     dependsOn 'classes'
     classpath = molangCheckClasspath
     mainClass = 'io.github.tt432.dokimobs.molangcheck.MolangCheck'
-    args = [findProperty('molangTarget') ?: 'src/main/resources/assets/dokimobs']
+    // Stonecutter 的节点子项目工作目录是 versions/<mc>/，相对路径会落到不存在的
+    // versions/<mc>/src/main/resources/…（IOException: Not found）。资源只在根项目里，
+    // 默认值必须解析成根项目的绝对路径；-PmolangTarget 仍可覆盖。
+    args = [findProperty('molangTarget') ?: rootProject.file('src/main/resources/assets/dokimobs').absolutePath]
 }
 
 tasks.register('molangCheckExpr', JavaExec) {
