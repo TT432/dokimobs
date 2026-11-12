@@ -121,7 +121,7 @@
         "idle": {
           "transitions": [
             {
-              "sit": "q.sit_amount>0"
+              "sit": "query.carryon || q.sit_amount > 0"
             },
             {
               "walk": "q.is_moving"
@@ -143,7 +143,7 @@
         "sit": {
           "transitions": [
             {
-              "idle": "q.sit_amount<=0"
+              "idle": "!query.carryon && q.sit_amount <= 0"
             }
           ],
           "blend_transition": 0.2,
@@ -155,6 +155,9 @@
         },
         "walk": {
           "transitions": [
+            {
+              "sit": "query.carryon || q.sit_amount > 0"
+            },
             {
               "run": "q.modified_move_speed>0.6"
             },
@@ -178,6 +181,9 @@
         "run": {
           "transitions": [
             {
+              "sit": "query.carryon || q.sit_amount > 0"
+            },
+            {
               "walk": "q.modified_move_speed<0.3&&q.any_animation_finished"
             },
             {
@@ -200,6 +206,9 @@
         "float": {
           "transitions": [
             {
+              "sit": "query.carryon || q.sit_amount > 0"
+            },
+            {
               "idle": "!q.is_in_water&&q.is_on_ground&&!q.is_moving"
             },
             {
@@ -216,6 +225,9 @@
         },
         "air": {
           "transitions": [
+            {
+              "sit": "query.carryon || q.sit_amount > 0"
+            },
             {
               "idle": "q.is_on_ground&&!q.is_in_water&&!q.is_moving"
             },

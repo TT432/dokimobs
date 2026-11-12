@@ -1294,59 +1294,63 @@ attachable 模型，几何与焊接动画都在持有者 item 骨骼帧里），
 任何一次 `processResources`/`assemble` 都会覆盖回源码版本——必须「构建 → 改 build/resources →
 启动 → 截图」，中途重跑构建会让开关静默失效。
 
-## 2026-11-12 `query.carryon` + 抱起播放坐姿（5 个有坐姿剪辑的实体已接线）
+## 2026-11-12 `query.carryon` + 抱起坐姿（走包内既有的 riding「被托着」语境）
 
 **用户要求**：① Molang 拓展 `query.carryon`——被 CarryOn 抱起来时为 true；② 改 cliententity 的
-animation controller，抱起时播放「坐着」的动画。用户先要求盘点坐姿素材，再据盘点决定是否改资源。
+animation controller，抱起时播放「坐着」的动画。
 
-### 坐姿剪辑盘点（pack.cospack 22 条目 + 5 个 bbmodel，逐条查 `animations` 与控制器状态）
+### 第一版为什么错（已撤销）
 
-| 有坐姿 | 剪辑 / 原触发 |
+v1 把 `query.carryon` 并进了**「坐在地上」**的条件：`controller.animation.mdsj_skeleton.sit` 的
+`query.is_sitting`、wolf 的 `q.sit_amount`、warden 的 `sit_ctl`。但包里这几条 sit 剪辑都带
+**固定的坐地下坠**（实测关键帧）：skeleton `allbody -30.1 / root +18`（净 −12.1）、
+warden `allbody -23`、wolf `AllBody -9` —— 被抱起来是**悬空被托着**，按坐地条件播会把模型往下沉。
+用户判为「坐下的条件改得不对」。
+
+### 正确语境：包里「被托着」= riding
+
+- 共享控制器 `controller.animation.mdsj_entity.riding`：`q.is_riding` → `riding` 状态播 `riding.legs`
+  （skeleton/stray/bogged → `animation.mdsj_skeleton.riding`；zombie/husk/drowned/zombie_villager →
+  `animation.mdsj_humanoid.riding.legs`）。
+- 同一姿势在 warden 上是 `riding_ctl` 权重 `q.is_riding` → `animation.mdsj_warden.riding`。
+- wolf 的 `wolf.坐下` 剪辑**自己**就有语境分支：`AllBody.y = q.is_riding ? -3 : -9`。
+- 量级佐证：warden riding 的 `allbody` 只 −15，sit 是 −23；即包内「被托着」的坐姿本来就更浅。
+- 因此 carryon 应与 `q.is_riding` 并列（同为「悬空被托着」），而不是与 `is_sitting` 并列。
+
+### 落地（`work/pack_patch_carryon_riding_20261112.py`，可重复执行）
+
+| 落点 | 改动 |
 |---|---|
-| skeleton / stray / bogged | `animation.mdsj_skeleton.sit`，`controller.animation.mdsj_skeleton.sit` 的 `sit` 状态 |
-| warden | `animation.mdsj_warden.sit`（短名 `sit_ctl`），`scripts.animate` 权重 `query.is_sitting` |
-| wolf（bbmodel 直载） | `dokimobs.wolf.坐下`，`controller.animation.doki_wolf.movement` 的 `sit` 状态 |
-
-**其余 22 个实体没有坐姿剪辑**：phantom、bee、cow、spider、llama、chicken、zombie_villager、sheep、
-husk、creeper、cave_spider、villager、pig、drowned、zombie、trader_llama、mooshroom、enderman、blaze、
-guardian、pillager、wandering_trader。四足只有待机/走跑/落水/吃草类剪辑（`mdsj_cow_idle.*`、
-`mdsj_sheep.grazing3` 等）；`idle_pose_*` / `zombie_0..7` 是待机姿态不是坐姿。CarryOn 默认
-`pickupHostileMobs=false`，能抱的恰是这些无剪辑的被动生物——**这 22 个要「抱起坐姿」只能先补美术剪辑**。
-
-### 资源侧接线（`work/pack_patch_carryon_sit_20261112.py`）
-
-1. skeleton / stray / bogged：`controller.animation.mdsj_skeleton.sit`
-   进入条件 `(query.is_sitting == 1.0&&query.modified_move_speed < 0.2)||query.carryon`，
-   **退出条件同步**改为 `(...)&&!query.carryon`——只加进入条件会在下一 tick 被 `is_sitting==0` 踢出。
-2. warden：`scripts.animate` 的 `sit_ctl` 权重 `query.is_sitting` → `query.is_sitting || query.carryon`。
-3. wolf：`eyelib/entity/wolf.json` 的 `scripts.animate` 直接挂 `"sit": ["query.carryon"]`。
-   不加进 `movement` 控制器的 sit 状态：抱起的假实体 `is_on_ground` 为假时状态机会停在 `air` 态，
-   永远进不到 sit；`animate` 权重与状态机无关，实测同样得到坐姿。
+| 共享 `controller.animation.mdsj_entity.riding`（7 个人形实体） | `default→riding`：`query.is_riding \|\| query.carryon`；`riding→default`：`!query.is_riding && !query.carryon` |
+| warden `scripts.animate` | `riding_ctl`：`q.is_riding \|\| query.carryon`（`sit_ctl` 恢复 `query.is_sitting`） |
+| wolf `controller.animation.doki_wolf.movement` | 5 个状态（idle/walk/run/float/air）都加 `sit` 转移 `query.carryon \|\| q.sit_amount > 0`（抱起的假实体常停在 `air`，只从 idle 进 sit 永远进不去）；`sit→idle` 改为 `!query.carryon && q.sit_amount <= 0` |
+| wolf `wolf.bbmodel` `wolf.坐下` | `AllBody.y = q.is_riding ? -3 : -9` → `(q.is_riding \|\| query.carryon) ? -3 : -9`（复用已 authoring 的悬空偏移，不新造数值） |
+| wolf `eyelib/entity/wolf.json` | 移除 v1 加的 `"sit": ["query.carryon"]` 权重（权重是叠加播放，会和状态机双驱动同一批骨骼） |
+| skeleton/stray/bogged `...skeleton.sit` | 恢复 v1 前的 `query.is_sitting` 条件 |
 
 ### `query.carryon` 判据
 
-`entity.level().getEntity(entity.getId()) != entity`——CarryOn 抱起后移除原实体，渲染期每帧
+`entity.level().getEntity(entity.getId()) != entity`：CarryOn 抱起后移除原实体，渲染期每帧
 `EntityType.create(NBT)` 造不入世界的假实体（`CarriedObjectRender` → `CarryRenderHelper.getRenderEntity`）；
-eyelib detached 管线（`EntityRenderOrchestrator#ensureDetachedEntityReady`）用**同一条**判据给它补 setup/tick，
-所以 query 求值时宿主正是那个假实体。不反射 CarryOn 类、无编译期依赖，未装 CarryOn 时恒 0。
+eyelib detached 管线（`EntityRenderOrchestrator#ensureDetachedEntityReady`）用同一条判据给它补 setup/tick，
+所以 query 求值时宿主正是那个假实体。不反射 CarryOn、无编译期依赖，未装时恒 0。
 
-### 验证（三节点，真 CarryOn，creative 下抱敌对生物）
+### 验证（26.1.2 实机 + 三节点闸门）
 
-| 节点 | compileJava | `molangCheck` | 抱起假实体 `query.carryon` | 世界实体 | 抱起 skeleton 坐姿 | 抱起 wolf 坐姿 |
-|---|---|---|---|---|---|---|
-| 1.20.1 | OK | 687 / 0 err | 1.0 | 0.0 | `1201_skeleton_sit.png` 实机跪坐 | 探针 A/B 已证 |
-| 1.21.1 | OK | 687 / 0 err | 1.0 | 0.0 | `1211_skeleton_sit.png` | `1211_wolf_sit.png` |
-| 26.1.2 | OK | 687 / 0 err | 1.0 | 0.0 | `2612_skeleton_sit_clean.png` | 探针 A/B 已证 |
+| 项 | 结果 |
+|---|---|
+| 抱起 skeleton | `run/dbg/carryon_riding/screenshots/2612_skeleton_riding_pose.png`：腿曲起、身体直立（riding 坐姿） |
+| 抱起 zombie | `.../2612_zombie_carried_riding.png`：同上（走 `mdsj_humanoid.riding.legs`） |
+| 抱起 wolf | `.../2612_wolf_carried_sit.png`：坐下且用 −3 悬空偏移 |
+| 世界对照（wolf 未抱起） | `.../2612_world_wolf_control.png`：正常站立 |
+| `molangCheck` 三节点 | **687 expressions, 0 error(s)**（新增的表达式分别在 cospack 控制器、doki.json、bbmodel 关键帧里） |
 
-- 截图目录：`versions/<node>/run/dbg/carryon_sit/screenshots/`（本轮正式验证）与 `.../dbg/carryon_probe/screenshots/`
-  （接资源前用部署层临时探针做的 A/B：`*_on*` 坐、`*_off*` 直立）。
-- 映射存在性可证伪：`molangCheckExpr -PmolangExpr="query.carryon && query.is_sitting"` 三节点 0 error；
-  换成 `query.definitely_not_a_query_xyz` 立刻 1 error。
-- warden：接线表达式 `query.is_sitting || query.carryon` 对抱起的假 warden 求值为 **1.0**（线上同一个表达式），
-  但**没有做视觉 A/B**——warden 模型在第三人称近距离下镜头必被挤压，本轮未取到可判读截图。
-- **口径收窄**：抱起走的是 `CarryOnData.setEntity` + `remove(UNLOADED_WITH_PLAYER)` + `setCarryData`
-  （= `tryPickupEntity` 末三步），没模拟客户端按键 → `ServerboundCarryKeyPressedPacket` → `canCarryGeneral`
-  的完整输入链路；守卫逻辑不属被测对象。
-- 环境：三节点 dev 客户端在运行时会锁住 `build/moddev/artifacts/*.jar`，此时 `:test` 的
-  `createMinecraftArtifacts` 报 `AccessDeniedException`（不是代码问题）。另：`mcmcp_close` 对 1.20.1 返回
-  「Already idle」但进程仍活着且端口已死，已记反馈待定位。
+- `MolangCheck` 此前只扫 `.json`/`.cospack`，**漏扫 `.bbmodel`**（而 bbmodel 的内嵌动画里确实写 Molang，
+  如 wolf 的 `q.is_riding ? -3 : -9`）；本轮把 `.bbmodel` 加入扫描后缀，否则新版剪辑表达式逃过闸门。
+- **未覆盖**：1.20.1 / 1.21.1 本轮只跑了 `molangCheck`，实机只验 26.1.2（riding 控制器是纯资源侧状态机，
+  三节点走同一套 eyelib 控制器执行器，但未逐节点截图）；warden 只核到 `riding_ctl` 表达式与
+  `query.carryon` 求值，未做视觉 A/B（模型过大，第三代镜头贴脸）；CarryOn 抱起仍走
+  `CarryOnData.setEntity` + `remove(UNLOADED_WITH_PLAYER)` + `setCarryData`，未模拟客户端按键链路。
+- 覆盖实体：skeleton/stray/bogged/zombie/husk/drowned/zombie_villager（共享 riding 控制器）+ warden + wolf
+  = 9 个。cow/pig/sheep/llama/chicken/spider/creeper/enderman/phantom/bee/villager/blaze/guardian/pillager/
+  wandering_trader 等既无 sit 也无 riding 剪辑，仍需美术补素材。

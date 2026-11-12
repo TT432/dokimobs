@@ -139,7 +139,9 @@ public final class MolangCheck {
 
     private static boolean isScannable(Path path) {
         String name = path.getFileName().toString();
-        return name.endsWith(".json") || name.endsWith(".cospack");
+        // .bbmodel 也是动画来源（eyelib 直接加载其内嵌动画，剪辑关键帧里可写 Molang），
+        // 例如 wolf.坐下 的 `q.is_riding ? -3 : -9`；漏扫它会让这类表达式逃过存在性检查。
+        return name.endsWith(".json") || name.endsWith(".cospack") || name.endsWith(".bbmodel");
     }
 
     private static void scanFile(Path path, Map<String, Finding> out) throws IOException {
