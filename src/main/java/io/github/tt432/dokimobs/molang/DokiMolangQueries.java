@@ -6,6 +6,7 @@ import io.github.tt432.eyelib.molang.mapping.api.MolangFunction;
 import io.github.tt432.eyelib.molang.mapping.api.MolangMapping;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.warden.Warden;
 import net.minecraft.world.item.CrossbowItem;
@@ -33,6 +34,7 @@ public final class DokiMolangQueries {
     private static final HostRole<Warden> WARDEN = HostRole.of("Warden", Warden.class);
     private static final HostRole<Sheep> SHEEP = HostRole.of("Sheep", Sheep.class);
     private static final HostRole<LivingEntity> LIVING = HostRole.of("LivingEntity", LivingEntity.class);
+    private static final HostRole<Entity> ENTITY = HostRole.of("Entity", Entity.class);
 
     /**
      * 主手是否持有弩。掠夺者模型把弩烘焙在右前臂（bone19..bone28）上，原生只应在持弩时显示；
@@ -149,5 +151,26 @@ public final class DokiMolangQueries {
             return w.sonicBoomAnimationState.getAccumulatedTime() < 4_300L ? 1F : 0F;
             //?}
         }).orElse(0F);
+    }
+
+    /**
+     * 被 CarryOn 抱起来的实体。CarryOn 抱起后把实体从世界移除，渲染时每帧用
+     * {@code EntityType.create(NBT)} 造一个 <b>不加入世界</b> 的假实体提交渲染
+     * （{@code CarriedObjectRender} / {@code CarryRenderHelper.getRenderEntity}），
+     * 因此「正在被渲染的这个实例不在客户端世界实体表里」即「被 carryon 抱起来的渲染实例」。
+     *
+     * <p>判据与 eyelib 的 detached 管线（{@code EntityRenderOrchestrator#ensureDetachedEntityReady}
+     * 的 {@code level.getEntity(entity.getId()) == entity} 短路）完全一致：同一条代码路径
+     * 给这类实体补 setup/tick，所以 query 求值时拿到的宿主正是那个假实体。
+     * 用「世界实体表身份比对」而不是反射 CarryOn 的类：dokimobs 不硬依赖 CarryOn，
+     * 三个节点（1.20.1 / 1.21.1 / 26.1.2）同一份实现，未装 CarryOn 时恒为 0。
+     */
+    @MolangFunction(value = "carryon", description = "当前渲染的实体是否被 CarryOn 抱起（渲染实例不在世界实体表内）")
+    public static float carryon(MolangScope scope) {
+        Entity entity = scope.getHostContext().get(ENTITY).orElse(null);
+        if (entity == null) {
+            return 0F;
+        }
+        return entity.level().getEntity(entity.getId()) == entity ? 0F : 1F;
     }
 }

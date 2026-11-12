@@ -1293,3 +1293,56 @@ attachable 模型，几何与焊接动画都在持有者 item 骨骼帧里），
 **dev 验证注意**：cospack 的 description 改动只有放进 `build/resources/main/...` 才生效，
 任何一次 `processResources`/`assemble` 都会覆盖回源码版本——必须「构建 → 改 build/resources →
 启动 → 截图」，中途重跑构建会让开关静默失效。
+
+## 2026-11-12 `query.carryon` + 抱起播放坐姿的可行性盘点（坐姿未改资源）
+
+**用户要求**：① 在 dokimobs 做 Molang 拓展 `query.carryon`——被 CarryOn 抱起来时为 true；
+② 改 cliententity 的 animation controller，抱起时播放「坐着」的动画。
+**附加决策（用户当场下达）**：先盘点是否所有实体都有坐姿；**不是所有都有就不改资源**。
+
+### 坐姿剪辑盘点（pack.cospack 22 条目 + 5 个 bbmodel，逐个查 `animations` 表与控制器状态）
+
+| 有坐姿 | 剪辑 / 触发 |
+|---|---|
+| skeleton / stray / bogged | `animation.mdsj_skeleton.sit`，`controller.animation.mdsj_skeleton.sit` 的 `sit` 状态（`query.is_sitting==1.0 && modified_move_speed<0.2`） |
+| warden | `animation.mdsj_warden.sit`，`scripts.animate` 直接权重 `query.is_sitting` |
+| wolf（bbmodel） | `dokimobs.wolf.坐下`，`controller.animation.doki_wolf.movement` 的 `sit` 状态（`q.sit_amount>0`） |
+
+**无坐姿（22 个）**：phantom、bee、cow、spider、llama、chicken、zombie_villager、sheep、husk、creeper、
+cave_spider、villager、pig、drowned、zombie、trader_llama、mooshroom、enderman、blaze、guardian、pillager、
+wandering_trader。四足只有待机/行走/奔跑/跳跃/落水/吃草类剪辑（`mdsj_cow_idle.*`、`mdsj_sheep.grazing3` 等），
+`idle_pose_*` / `zombie_0..7` 是待机姿态不是坐姿；bbmodel 侧只有 wolf 一条 `wolf.坐下`。
+**CarryOn 默认 `pickupHostileMobs=false`，能抱的恰是这些被动生物**——所以「抱起播坐姿」对大多数实体无片可播。
+按用户口径「不是所有都有就不改」，**本轮未改任何资源**（`pack.cospack`、`eyelib/entity/*.json` 均未动）。
+
+### `query.carryon` 实现（`DokiMolangQueries#carryon`）
+
+判据：**正在渲染的实体不在客户端世界实体表内**（`entity.level().getEntity(entity.getId()) != entity`）。
+
+- 依据：CarryOn 抱起时把原实体移除，渲染期每帧 `EntityType.create(NBT)` 造不入世界的假实体
+  （`CarriedObjectRender` → `CarryRenderHelper.getRenderEntity`）；eyelib 的 detached 管线用**同一条**判据
+  （`EntityRenderOrchestrator#ensureDetachedEntityReady`）为它补 setup/tick，所以 query 求值时宿主正是那个假实体。
+- 不反射 CarryOn 类、不加编译期依赖：未装 CarryOn 时恒为 0；三节点同一份实现。
+- 宿主角色取 `HostRole.of("Entity", Entity.class)`（与 `MolangBuiltInQuery` 同款，经 `RenderData` 的
+  `put(owner.getClass(), owner)` + isInstance 扫描解析）。
+
+### 验证（三节点，真 CarryOn）
+
+| 节点 | compileJava | `molangCheck` | 抱起假实体 `query.carryon` | 世界实体 | 客户端玩家 | 管线消费（视觉 A/B） |
+|---|---|---|---|---|---|---|
+| 1.20.1 | OK | 686 / 0 | **1.0** | 0.0 | 0.0 | 坐姿开/关姿态明显不同 |
+| 1.21.1 | OK | 686 / 0 | **1.0** | 0.0 | 0.0 | 同上 |
+| 26.1.2 | OK | 686 / 0 | **1.0** | 0.0 | 0.0 | 同上 |
+
+- 映射存在性可证伪：`molangCheckExpr -PmolangExpr="query.carryon && query.is_sitting"` 三节点 0 error；
+  换成 `query.definitely_not_a_query_xyz` 立刻 1 error（`不存在的 Molang 字段/查询`），说明该检查真能判存在性。
+- 数值口径：客户端 `/eval` 里用 `MolangDebugService.eval(scope, "query.carryon")`，宿主分别放入
+  「CarryOn 数据重建的假实体」「世界里的同类型 wolf」「客户端玩家」三种。
+- 管线消费证据（部署层临时探针，**已还原**）：在 `versions/<node>/build/resources/main/.../eyelib/entity/wolf.json`
+  的 `scripts.animate` 里加 `"sit": ["query.carryon"]` → 被抱起的 wolf 呈跪坐（身体下沉、腿折叠、头低），
+  去掉该条并 `reloadResourcePacks` 后又回到直立；截图
+  `versions/{1.20.1,1.21.1,26.1.2}/run/dbg/carryon_probe/screenshots/`（`*_side_on*` / `*_side_off*`）。
+**口径收窄**：本轮抱起走的是 `CarryOnData.setEntity` + `remove(UNLOADED_WITH_PLAYER)` + `setCarryData`
+（即 `tryPickupEntity` 的最后三步），**没有**模拟客户端按键 → `ServerboundCarryKeyPressedPacket` → `canCarryGeneral`
+的完整输入链路；守卫逻辑不属本轮被测对象。另：`mcmcp_status` 传显式 `port` 时版本号取的是最近一次 launch 的进程，
+多客户端并行时不可信，需直接 `GET /version` 核对（已记反馈）。
