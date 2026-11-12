@@ -1257,3 +1257,39 @@ attach 目标是否存在（**对每个模型都做一次检查**）；③ 之�
 - dokimobs：三节点 `assemble` 成功、`test` 通过、`molangCheck` 三节点 **686 expressions, 0 error(s)**
   （`molangCheck` 在 version 子项目里跑需传绝对路径：
   `-PmolangTarget=E:/_ideaProjects/dokimobs/src/main/resources/assets/dokimobs`）。
+
+## 2026-11-12 追记：四个装备渲染开关（enable_attachables / hide_armor / held_item_ignores_lighting / held_item_scale）
+
+**用户要求**：「代理 attachable 不应该和真实的 attachable 有差别，四个字段都实现一下」。
+
+基岩版 `minecraft:client_entity.description` 的四个字段（bedrock.dev / Microsoft Learn 原文见
+eyelib `ADR-0043 §5.7`）现在全部生效，且**真实 attachable 与代理 attachable 共用同一套判定**：
+
+| 字段 | 语义 | 落点 |
+|---|---|---|
+| `enable_attachables` | 盔甲与武器的总开关（缺省 false） | `AttachablePolicy.allowsAttachables` |
+| `hide_armor` | 覆盖总开关的盔甲部分：只压盔甲，武器照常 | `AttachablePolicy.allowsArmor` |
+| `held_item_ignores_lighting` | 手持物全亮 | `AttachablePolicy.heldItemLight` |
+| `held_item_scale` | Molang 缩放手持物（<=0 回落 1.0） | `AttachablePolicy.heldItemScale` |
+
+抽象方式：① 准入只有 `AttachableResolver.resolve(holder, stack, slot)` 一处，内部按
+`isArmorStack` 分流到 `allowsArmor` / `allowsAttachables`，代理侧调用同一个判定；
+② 挂载点解析只有 `ProxyAttachable.resolveChain` 一处（真实 attachable 的 `binding`/同名骨骼是
+单元素链）；③ 槽位归属仍由 `ProxyAttachments` 裁决，真实 attachable 命中的槽整条跳过。
+
+**手持物本来就走 attachable**：`HandItemRenderer` 先查 `minecraft:attachable` 定义（命中则画
+attachable 模型，几何与焊接动画都在持有者 item 骨骼帧里），未命中才画原版物品模型——两者共享
+同一个挂载点、同一个准入、同一份光照与缩放。
+
+**实机验证（26.1.2，dev 包内逐字段改写 cospack description）**
+
+| 字段 | 结果 |
+|---|---|
+| `hide_armor: true`（zombie） | 铁盔/胸甲不显示，铁剑仍显示 |
+| `enable_attachables: false`（husk） | 同帧对照 skeleton（true）有甲有剑，husk 两者皆无 |
+| `held_item_ignores_lighting: true`（drowned，午夜） | 剑亮白，对照 zombie 的剑暗 |
+| `held_item_scale: "3.0"`（drowned） | 剑明显长于对照 zombie |
+
+**dev 验证注意**：cospack 的 description 改动只有放进 `build/resources/main/...` 才生效，
+任何一次 `processResources`/`assemble` 都会覆盖回源码版本——必须「构建 → 改 build/resources →
+启动 → 截图」，中途重跑构建会让开关静默失效。
