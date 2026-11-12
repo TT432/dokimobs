@@ -1252,6 +1252,7 @@ attach 目标是否存在（**对每个模型都做一次检查**）；③ 之�
 ### ⑥ 闸门与产物
 
 - eyelib：三节点 `compileJava` / `:test` / `:nullawayMain` 全绿（含新增 `ProxyAttachmentsTest`）；
+  `:1.20.1:runClientSmoke` **12/12 passed**（含 `AttachableSmoke`：`bone root binding -> rightitem`）；
   `21.1.39 → 21.1.40`（clientsmoke 同步 21.1.40 后先发布到 mavenLocal）。
 - dokimobs：三节点 `assemble` 成功、`test` 通过、`molangCheck` 三节点 **686 expressions, 0 error(s)**
   （`molangCheck` 在 version 子项目里跑需传绝对路径：
