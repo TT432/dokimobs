@@ -1354,3 +1354,24 @@ eyelib detached 管线（`EntityRenderOrchestrator#ensureDetachedEntityReady`）
 - 覆盖实体：skeleton/stray/bogged/zombie/husk/drowned/zombie_villager（共享 riding 控制器）+ warden + wolf
   = 9 个。cow/pig/sheep/llama/chicken/spider/creeper/enderman/phantom/bee/villager/blaze/guardian/pillager/
   wandering_trader 等既无 sit 也无 riding 剪辑，仍需美术补素材。
+
+### 追记：抱起时同时播了几条（实测）与待机层压制
+
+26.1.2 实机，对抱起的 skeleton 假实体（`MolangDebugService.eval`，宿主 = CarryOn 每帧重建的假实体）求值各条
+`scripts.animate` / 控制器里当权重用的表达式：
+
+| 权重表达式 | 抱起时 | 世界中（对照） | 对应剪辑 |
+|---|---|---|---|
+| `math.round(q.ground_speed)==0&&!q.has_target`（`mdsj_entity.pose` 进 posing） | 1.0 | 1.0 | `still_pose`（整身底） |
+| `!query.is_sitting`（`idle_hostile` 的 `idle_0/1/2` 权重） | **1.0** | 1.0 | `idle_*`（整身抖动） |
+| `query.is_riding \|\| query.carryon`（riding 入口） | 1.0 | 0.0 | `riding.legs`（坐姿） |
+| `q.modified_move_speed` / `!q.is_on_ground` | 0 / 0（`is_on_ground`=1） | 0 / 0 | move、jump/fall 不参与 |
+
+即：**第一版接线后，抱起的 skeleton 有 3 条整身剪辑同时驱动**（`still_pose` + `idle_*` + `riding.legs`）；
+包内「坐下」的叠法是 2 条（sit + still_pose），因为 `idle_*` 被 `!query.is_sitting` 压掉了。
+
+修正（`work/pack_patch_carryon_suppress_idle_20261112.py`）：按包内既有压制方式，把**会获得 riding 坐姿的
+7 个人形实体**的 `idle_0/1/2` 权重改成 `!query.is_sitting&&!query.carryon`（共 15 处）。
+无坐姿/riding 素材的实体（牛/猪/羊…）不压待机——否则被抱起时只会僵住。
+压制后复测：抱起 = `still_pose`(1) + `riding.legs`(1)、`idle_*`(0)；世界对照 `idle_*`(1)、riding(0)，行为不变。
+截图：`versions/26.1.2/run/dbg/carryon_riding/screenshots/2612_skeleton_suppressed_day.png`。
