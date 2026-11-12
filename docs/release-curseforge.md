@@ -4,11 +4,37 @@
 依赖项 `eyelib` 是独立项目（`../qylEyelib`），它的发版见该项目 `.opencode/skills/eyelib-release/SKILL.md`；本文档只覆盖 dokimobs 侧。
 
 ## 版本与坐标
-- 版本唯一来源：`gradle.properties` 的 `mod_version`（当前 `0.3.14`）。
+- 版本唯一来源：`gradle.properties` 的 `mod_version`（当前 `0.3.16`）。
 - 节点：`stonecutter.properties.toml` 的 `1.20.1`（legacy Forge）、`1.21.1`、`26.1.2`（NeoForge）。
 - 产物名：`dokimobs-${mod_version}+${minecraft_version}-${forge|neoforge}.jar`。
 - CurseForge 项目：ID `1234919`，slug `dokimobs`。
-- 运行时依赖：`META-INF/mods.toml` / `META-INF/neoforge.mods.toml` 里 `eyelib` 的 `versionRange` 由 `gradle.properties` 的 `eyelib_version` 展开。**发布前必须确认同版本 eyelib 三节点已在该 MC 版本的 CF 页面可下载**，否则用户装上后缺前置。
+
+## 步骤 -2：eyelib 侧先走 PR（依赖代码先合并）
+
+eyelib 是独立项目（`../qylEyelib`），本仓 `gradle.properties` 的 `eyelib_version` 指向的行为改动必须先落到
+eyelib 的远端分支并开 PR：
+
+1. 在 `../qylEyelib` 确认待发版改动所在分支（`git status -sb`、`git log origin/<branch>..HEAD`），推分支：
+   `git push origin <branch>`。
+2. 开 PR：`gh pr create --base <base> --head <branch> --title ... --body ...`（记录 PR 号）。
+3. 合并（或确认已合并）后再进入步骤 0；**PR 未合并的 eyelib 版本不发到 CF**。
+4. 若本次同时要发新 eyelib 版本，按 `../qylEyelib/.opencode/skills/eyelib-release/SKILL.md` 执行并记录 fileId。
+
+## 步骤 -1：dokimobs 侧先 push
+
+发版前把待发版的工作树推到远端，保证「线上产物 == 远端源码」：
+
+- `git status -sb` 确认无未提交/未跟踪的源码改动（`work/`、`artifacts/` 不入库）。
+- `git log --oneline origin/master..HEAD` 列出即将发布的内容，确认都在本次 changelog 里。
+- `git push origin master`，再核对 `git status -sb` 显示与 origin 齐平。
+
+## 步骤 0：前置依赖确认（eyelib 三节点已在 CF 可下载）
+
+- `META-INF/mods.toml` / `META-INF/neoforge.mods.toml` 里 `eyelib` 的 `versionRange` 由 `gradle.properties` 的
+  `eyelib_version` 展开。**发布前必须确认该版本三节点已在该 MC 版本的 CF 页面可下载**，否则用户装上后缺前置。
+- 核对方式：`../qylEyelib/.opencode/skills/eyelib-release/SKILL.md` 的发布记录里有该版本的 fileId，
+  或 `https://r.jina.ai/https://www.curseforge.com/minecraft/mc-mods/eyelib/files/all?cb=<唯一串>` 看到三个文件名。
+- 该版本没有发布记录时**停下**：先走 eyelib 发版，不要用旧 `eyelib_version` 降级凑合。
 
 ## 凭据
 - `%USERPROFILE%/.gradle/gradle.properties` 的 `CURSE_TOKEN`（36 字符，`https://authors.curseforge.com/#/settings/api-tokens` 生成的**作者 Upload API token**）。
