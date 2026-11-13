@@ -1375,3 +1375,93 @@ eyelib detached 管线（`EntityRenderOrchestrator#ensureDetachedEntityReady`）
 无坐姿/riding 素材的实体（牛/猪/羊…）不压待机——否则被抱起时只会僵住。
 压制后复测：抱起 = `still_pose`(1) + `riding.legs`(1)、`idle_*`(0)；世界对照 `idle_*`(1)、riding(0)，行为不变。
 截图：`versions/26.1.2/run/dbg/carryon_riding/screenshots/2612_skeleton_suppressed_day.png`。
+
+## 2026-11-13 眨眼通道全量审计（27 实体 / 58 几何模型）
+
+用户反馈「若干模型的眼部没有和眨眼动画对上」。审计方法分两层，结论以**渲染器自身的注册表**为准：
+
+1. **运行时通道绑定**（1.21.1 dev 客户端 + AIDebugServer `/eval`，反射访问
+   `ClientEntityManager` / `ModelManager` / `AnimationRegistries` / `GlobalBoneIdHandler`）：
+   对每个 client entity 的每个 `geometry`，取出 `Model.allBones()` 的骨骼名集合，再取
+   `animation.mdsj_entity.blink` 剪辑的 `bones()` 键集合，求差集 —— 差集即「剪辑驱动了、但模型里没有这个骨骼」
+   的通道，也就是眨眼**没有落点**的部分。
+2. **几何归属**（直接解析 `pack.cospack` 的 `models[].all_bones` 与 `bbmodels/*.bbmodel` 的
+   `outliner`+`groups`）：眼球/瞳孔立方体所在骨骼是否在 `eyelid` 子树内。
+
+### 契约
+
+共享剪辑 `animation.mdsj_entity.blink`（4s 循环）只驱动两个骨骼：
+`eyelid`（`scale.y` 1→0，同时 `position.y` +0.6）与 `eyebrows`（`position.y` −1.2px）。
+eyelib 按 `GlobalBoneIdHandler` 绑定骨骼，键是 `name.toLowerCase(Locale.ROOT)` →
+**大小写不敏感**（`Eyelid` 能接住 `eyelid` 通道，wolf 实测生效），但**不做别名/前缀匹配**
+（`eyebrow` ≠ `eyebrows`，`EyeBalls` ≠ `eyelid`）。
+包的约定是：`eyelid` 是**眼球的父组**，塌缩它 = 眼球消失（不是"眼皮盖下来"）；`eyebrows` 是眉组的父组。
+
+### 结论：9 个实体的眨眼没有视觉落点
+
+| 实体 | geometry | 缺失通道 | 现场 |
+|---|---|---|---|
+| blaze | geometry.doki_blaze（bbmodel） | `eyelid`,`eyebrows` | 眼球在 `EyeBalls`（8 立方体），眉是 `RightEyeBrow_Up`/`LeftEyeBrow_Up` |
+| pillager | geometry.doki_pillager（bbmodel） | 同上 | 眼球在 `EyeBalls2`（14），眉是 `Eyebrow`→`Left/RightEyebrow` |
+| wandering_trader | geometry.doki_wandering_trader（bbmodel） | 同上 | 眼球在 `EyeBalls`（14），眉是 `Eyebrow`（含睫毛组） |
+| bee | geometry.mdsj_bee（cospack） | 同上 | `eyes`→`lefteye`/`righteye`（8 立方体） |
+| pig | geometry.pig2（cospack） | 同上 | `eyes`→`lefteyelid`/`righteyelid`→`*eyesbase`；**walk/run 剪辑里已经写了 `eyelid` 通道**，说明模型丢了这一层 |
+| drowned | geometry.drowned2（cospack） | 同上 | `eyes`→`lefteye`/`righteye`（4） |
+| zombie_villager | geometry.z_tool_smith（cospack） | 同上 | 同 pig；zombie_villager 其余 14 个职业变体都有 `eyelid`，只有 z_tool_smith 没有 |
+| creeper | geometry.creeper2 / creeper.charged2（cospack） | 剪辑根本没接线 | 模型**有** `eyelid`/`eyebrows`（7 个眼球立方体在 `eyelid` 下），但 `animations` 里没有 `blink` 短名、`animate` 里没有 `controller_blink` |
+| warden | geometry.mdsj_warden（cospack） | 双重 | `animations` 有 `controller_blink` 但 `scripts.animate` 没引用它，且没有 `blink` 短名（控制器播 `blink` → resolve 为 null → 安全降级）；模型本身也没有 `eyelid`，眼睛是 `eyenl`/`eyenr` |
+
+### 次要项
+
+| 实体 | 现象 |
+|---|---|
+| wolf / cow / mooshroom | 只有 `eyebrows` 缺落点（眼睑正常）：wolf 的眉组叫 `Eyebrow`，cow/mooshroom 是 `righteyebrow`/`lefteyebrow`（父组 `eyebrow`）。眨眼时眼会闭、眉不动 |
+| bogged | `eyelid` 子树里只有右眼几何（`righteyeball` 1 + `rightiris` 2 立方体）；左眼 `lefteyeball`/`leftiris`/`leftpupil` **立方体数为 0**，`lefteyeeyebrowa` 也是 0 → 眨眼只闭右眼。左眼是否由贴图绘制未目视确认 |
+| villager | `blink` **双驱动**：`controller_blink`（`controller.animation.mdsj_blink`）与 `base_general`→`controller.animation.mdsj_villager_anim.base` 的 `default` 状态同时播 `blink`，按 2026-10-12 的双驱动结论为恒定 2× 幅值（eyelid `position.y` +1.2px、eyebrows −2.4px） |
+| villager | `animation.mdsj_villager.close_i`（`idle_blink` 短名，驱动骨骼 `eyelids`，复数）在 villager 的模型里没有同名人，也没有控制器引用 → 死素材 |
+
+### 已核正常的模型
+
+guardian（2026-11-07 改名后）、phantom、spider v1.8/v2、cave_spider、llama、trader_llama、chicken、
+skeleton、stray、husk、zombie、enderman、sheep×2、mooshroom（眼睑侧）、cow（眼睑侧）、zombie_villager 其余 14 个
+变体、villager 15 个变体（骨骼侧）：这些 `eyelid` 存在且眼球立方体在其子树内。
+
+### 修复（已执行，`work/patch_blink_bones_20261113.py`，可重复执行/幂等）
+
+只做加法：插一层父骨骼 / 补接线，**不改任何几何顶点、贴图与关键帧数值**。
+
+| 落点 | 改动 |
+|---|---|
+| bbmodel blaze / pillager / wandering_trader | `EyeBalls` / `EyeBalls2` 外包新组 `eyelid`；眉组外包新组 `eyebrows`（blaze 是两个 `EyeBrow_Up`，其余是 `Eyebrow` 容器）。用**加包层**而不是改名，bbmodel 内嵌动画的 animator.name 轨道全部保持有效 |
+| bbmodel wolf | `Eyebrow` 外包 `eyebrows`（`Eyelid` 已在，大小写不影响绑定） |
+| cospack bee | `eyes`+`eyes2` 外包 `eyelid`（父 `head`；`face1`/`face2` 是恒等静止骨骼） |
+| cospack pig / zombie_villager.z_tool_smith | `eyes` 外包 `eyelid`，`eyebrow` 外包 `eyebrows` |
+| cospack drowned | `eyes` 外包 `eyelid`，眉容器 `bone` 外包 `eyebrows` |
+| cospack warden | `yanbail`+`yanbair` 外包 `eyelid`（共同父 `yanbai`）；补 `blink` 短名 + `controller_blink` 进 `scripts.animate` |
+| cospack creeper | 补 `blink`/`controller_blink` 短名与 `scripts.animate` 权重（模型侧 `eyelid` 本来就就绪） |
+| cospack cow / mooshroom | `eyebrow` 外包 `eyebrows` |
+| cospack villager | `controller.animation.mdsj_villager_anim.base` 的 `initialState`/`default` 里删掉 `blink`，只留 `controller_blink` |
+
+插层而不是改名 `eyes` 的原因：`eyes` 通道仍被 pig 的 walk/run、drowned 的 `look_at_target` 等剪辑驱动，
+改名会让这些通道失去落点。父骨骼 pivot 取被包子树立方体包围盒中心，塌缩平面落在眼睛中线，
+与包内既有 `eyelid` 的做法一致（zombie `eyelid` pivot y=2.0 vs 眼立方体 1.969–2.094）。
+
+### 验证（1.21.1 实机，端口 31878）
+
+| 项 | 结果 |
+|---|---|
+| 运行时通道差集（重跑审计） | `rows=58 bad=7`，其中 7 条全部只是 `ctlBlink=false`（cow/sheep/pig/mooshroom 用 `scripts.animate` 直接挂 `blink` 权重 1.0，属既有设计）+ bee/warden 的 `eyebrows`（这两个模型没有眉几何）。**扫描/缺失通道 = 0** |
+| creeper（修复前从不眨眼） | `work/evidence_20261113/creeper_face_sheet.png`：逐 tick 抓帧，第 21–24 tick 琥珀色虹膜消失、只剩眼睑横线，之后张开 |
+| pillager（bbmodel 侧） | `pillager_face_sheet.png`：第 24–35 tick 绿色眼睛塌缩成缝、眉毛同时下压（两层包装都生效） |
+| pig（cospack 侧插层） | `pig_all_sheet.png`：第 44–46 / 108–112 tick 眼睛变细横线 |
+| villager（去掉双驱动后） | `villager_all_sheet.png`：第 40–44 tick 仍正常闭眼 → 去除 base 控制器里的 `blink` 没有把眨眼弄丢 |
+| 静置外观 | `screenshots/pillager_frame.png`、`screenshots/pig_frame.png`、`screenshots/creeper_frame4.png`：加了恒等父层后静止外观无位移 |
+
+- 抓帧方法：`ClientTickEvent.Post` 里每 tick `Screenshot.grab`（闭眼只有 2–5 tick / 80 tick，随机帧抓不到），
+  再把脸区裁切放大拼成 6×6 / 12×10 对照表。
+- **未覆盖**：本轮只在 1.21.1 实机验证；1.20.1 / 26.1.2 只做静态（三节点共用同一份 `pack.cospack` 与 bbmodel，
+  绑定链同在 eyelib，但未逐节点抓帧）。bogged 左眼缺几何属资产问题，本轮未动。
+- 顺带发现（未修，根因未定）：1.21.1 dev 客户端会**偶发**在 ModSorter 阶段崩——
+  `run/mods` 的 Iris 内嵌 `fabric_api_base` 要求 neoforge ≥ 21.1.169（dev 为 21.1.115）。
+  同一 mods 组合重试即可正常启动（21:10 崩 / 21:12 成功、21:29+21:31 崩 / 21:33 成功），
+  崩溃与否与本次改动无关。

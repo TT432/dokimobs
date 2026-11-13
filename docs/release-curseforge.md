@@ -9,7 +9,7 @@
 - 产物名：`dokimobs-${mod_version}+${minecraft_version}-${forge|neoforge}.jar`。
 - CurseForge 项目：ID `1234919`，slug `dokimobs`。
 
-## 步骤 -2：eyelib 侧先走 PR（依赖代码先合并）
+## 步骤 -2：eyelib 侧先走 PR（改动先过 PR + CI）
 
 eyelib 是独立项目（`../qylEyelib`），本仓 `gradle.properties` 的 `eyelib_version` 指向的行为改动必须先落到
 eyelib 的远端分支并开 PR：
@@ -17,8 +17,12 @@ eyelib 的远端分支并开 PR：
 1. 在 `../qylEyelib` 确认待发版改动所在分支（`git status -sb`、`git log origin/<branch>..HEAD`），推分支：
    `git push origin <branch>`。
 2. 开 PR：`gh pr create --base <base> --head <branch> --title ... --body ...`（记录 PR 号）。
-3. 合并（或确认已合并）后再进入步骤 0；**PR 未合并的 eyelib 版本不发到 CF**。
-4. 若本次同时要发新 eyelib 版本，按 `../qylEyelib/.opencode/skills/eyelib-release/SKILL.md` 执行并记录 fileId。
+3. 等 CI：`gh pr checks <PR>` 的三节点 `compile` 必须全绿。**PR 的 head 分支若含 clientsmoke gitlink，
+   必须先把 clientsmoke 的本地提交推到 `TT432/clientsmoke` main**，否则 CI 在 checkout 阶段 6–8 秒秒败
+   （`upload-pack: not our ref`，eyelib-release skill 步骤 1.2 记过两次）。
+4. 合并：按仓库既有惯例，发版可以从 feature 分支产物发起（历史上 21.1.35 / 21.1.39 都在 PR 未合入 master
+   时先发 CF）；**只要 CI 全绿即可进入步骤 0**，合并由维护者决定并记录 PR 号。
+5. 若本次同时要发新 eyelib 版本，按 `../qylEyelib/.opencode/skills/eyelib-release/SKILL.md` 执行并记录 fileId。
 
 ## 步骤 -1：dokimobs 侧先 push
 
