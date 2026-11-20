@@ -76,6 +76,13 @@ assets/dokimobs/eyelib/animation_controllers/doki.json 迁移+新建控制器
 - **缺失引用安全降级**：控制器状态引用未映射的短名 → resolveAnimation 返回 null → 该状态视为播完，
   不崩溃不刷屏。
 
+- **多人首进「赛博马赛克」（2026-11-20 定位，修在 eyelib）**：专用服务器首次进入时部分萌化实体整只采样紫黑缺省图，
+  单人正常、切光影或先进单人再回服后恢复。根因是 eyelib 运行期派生纹理（`clamped/`、`_color_mask/`）被烘焙的像素读取
+  经 vanilla `getTexture` 注册成缺省图占位（`byPath` 永久 MissingTexture），且 `eyelib$hasTexture` 把占位当已生成 →
+  派生纹理永不创建。修复在 eyelib（只读 peek + 就地派生 + `getTexture` 按需物化 + 占位不算存在），
+  详见 qylEyelib `docs/concepts/alpha-clamp-two-path.md`「派生纹理的只读读取与按需物化」。
+  排查提示：本类问题只在「真客户端 + 专用服务器」链路复现（本次用 `gradlew :1.21.1:runServer` + `--quickPlayMultiplayer`），
+  判据看客户端日志 `Failed to load texture: minecraft:clamped/…` 与 `/eval` 转储 `TextureManager.byPath` 的 MissingTexture 条目。
 - **variant 落盘必须显式同步（2026-10-09 实机定位）**：渲染期 `query.variant`/`query.mark_variant`
   读的是 `SyncedBehaviorState`（EntityRenderOrchestrator.setupSyncedBehaviorContext），附件无自动同步，
   村民职业/类型变化后必须写 SyncedBehaviorState 并 `syncTrackedAndSelf`（TempVariantSetting.syncVariantIfChanged）。
